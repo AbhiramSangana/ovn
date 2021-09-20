@@ -1202,18 +1202,28 @@
         </p>
       </dd>
 
-      <dt>[<code>--if-exists</code>] <code>lr-nat-del</code> <var>router</var> [<var>type</var> [<var>ip</var>]]</dt>
+      <dt>[<code>--if-exists</code>] <code>lr-nat-del</code> <var>router</var> [<var>type</var> [<var>ip</var> [<var>logical_ip</var>]]]</dt>
       <dd>
         <p>
           Deletes NATs from <var>router</var>.  If only <var>router</var>
           is supplied, all the NATs from the logical router are
           deleted.  If <var>type</var> is also specified, then all the
           NATs that match the <var>type</var> will be deleted from the logical
-          router.  If all the fields are given, then a single NAT rule
-          that matches all the fields will be deleted.  When <var>type</var>
-          is <code>snat</code>, the <var>ip</var> should be logical_ip.
+          router.  If <var>ip</var> is also specified, then NAT rules matching
+          the given fields will be deleted. When <var>type</var> is
+          <code>snat</code>, the <var>ip</var> should be logical_ip.
           When <var>type</var> is <code>dnat</code> or
           <code>dnat_and_snat</code>, the <var>ip</var> shoud be external_ip.
+          When <var>type</var> is <code>dnat</code> or
+          <code>dnat_and_snat</code>, a single NAT rule is expected to match
+          all the fields but this is not necessarily true when <var>type</var>
+          is <code>snat</code>. To match a single NAT rule of <var>type</var>
+          <code>snat</code> when multiple rules have the same logical_ip,
+          external_ip of the rule also needs to be specified.
+          <var>logical_ip</var> field can only be specified if
+          <var>type</var> is <code>snat</code>. In this case, the <var>ip</var>
+          should be external_ip of the rule and a single NAT rule that
+          matches all the fields will be deleted.
         </p>
 
         <p>

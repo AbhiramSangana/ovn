@@ -381,7 +381,7 @@ NAT commands:\n\
   lr-nat-add ROUTER TYPE EXTERNAL_IP LOGICAL_IP [LOGICAL_PORT EXTERNAL_MAC]\n\
                             [EXTERNAL_PORT_RANGE]\n\
                             add a NAT to ROUTER\n\
-  lr-nat-del ROUTER [TYPE [IP]]\n\
+  lr-nat-del ROUTER [TYPE [IP [LOGICAL_IP]]]\n\
                             remove NATs from ROUTER\n\
   lr-nat-list ROUTER        print NATs for ROUTER\n\
 \n\
@@ -4498,6 +4498,92 @@ nbctl_lr_route_del(struct ctl_context *ctx)
 }
 
 static bool
+is_snat_rule_conflict(const struct nbrec_logical_router *lr,
+                      char *new_external_ip, char *old_external_ip, bool is_v6)
+{
+    int num_l3dgw_ports = 0;
+    bool is_conflict = false;
+
+    struct lport_addresses old_external_ip_addr, new_external_ip_addr;
+
+    if (!extract_ip_addresses(new_external_ip, &new_external_ip_addr) ||
+        !extract_ip_addresses(old_external_ip, &old_external_ip_addr)) {
+        static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 1);
+        VLOG_WARN_RL(&rl, "Extract addresses failed.");
+        return true;
+    }
+
+    if (is_v6) {
+        ovs_assert(new_external_ip_addr.n_ipv6_addrs == 1);
+        ovs_assert(old_external_ip_addr.n_ipv6_addrs == 1);
+    } else {
+        ovs_assert(new_external_ip_addr.n_ipv4_addrs == 1);
+        ovs_assert(old_external_ip_addr.n_ipv4_addrs == 1);
+    }
+
+    for (size_t i = 0; i < lr->n_ports; i++) {
+        const struct nbrec_logical_router_port *lrp = lr->ports[i];
+        const struct nbrec_logical_router_port *old_port = NULL;
+        const struct nbrec_logical_router_port *new_port = NULL;
+        if (lrp->n_gateway_chassis) {
+            num_l3dgw_ports++;
+            struct lport_addresses lrp_addrs;
+            if (!extract_lrp_networks(lrp, &lrp_addrs)) {
+                static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 1);
+                VLOG_WARN_RL(&rl, "Extract addresses failed.");
+                continue;
+            }
+
+            if (is_v6) {
+                for (int j = 0; j < lrp_addrs.n_ipv6_addrs; j++) {
+                    struct ipv6_netaddr *lrp6_addr = &lrp_addrs.ipv6_addrs[j];
+                    struct in6_addr new_ip6_mask, old_ip6_mask;
+                    new_ip6_mask = ipv6_addr_bitand(
+                        &lrp6_addr->mask,
+                        &new_external_ip_addr.ipv6_addrs[0].addr);
+                    old_ip6_mask = ipv6_addr_bitand(
+                        &lrp6_addr->mask,
+                        &old_external_ip_addr.ipv6_addrs[0].addr);
+                    if (ipv6_addr_equals(&new_ip6_mask,
+                                         &(lrp6_addr->network))) {
+                        new_port = lrp;
+                    }
+                    if (ipv6_addr_equals(&old_ip6_mask,
+                                         &(lrp6_addr->network))) {
+                        old_port = lrp;
+                    }
+                }
+            } else {
+                for (int j = 0; j < lrp_addrs.n_ipv4_addrs; j++) {
+                    uint32_t nw_addr = ntohl(lrp_addrs.ipv4_addrs[j].network);
+                    uint32_t mask = ntohl(lrp_addrs.ipv4_addrs[j].mask);
+                    uint32_t new_ip, old_ip;
+                    new_ip = ntohl(new_external_ip_addr.ipv4_addrs[0].addr);
+                    old_ip = ntohl(old_external_ip_addr.ipv4_addrs[0].addr);
+                    if ((new_ip & mask) == nw_addr) {
+                        new_port = lrp;
+                    }
+                    if ((old_ip & mask) == nw_addr) {
+                        old_port = lrp;
+                    }
+                }
+            }
+            if ((old_port || new_port) && (old_port == new_port)) {
+                is_conflict = true;
+            }
+            destroy_lport_addresses(&lrp_addrs);
+        }
+    }
+    destroy_lport_addresses(&old_external_ip_addr);
+    destroy_lport_addresses(&new_external_ip_addr);
+
+    if (num_l3dgw_ports > 1 && !is_conflict) {
+        return false;
+    }
+    return true;
+}
+
+static bool
 is_valid_port_range(const char *port_range)
 {
     int range_lo_int, range_hi_int;
@@ -4557,6 +4643,7 @@ nbctl_pre_lr_nat_add(struct ctl_context *ctx)
 {
     ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_col_name);
     ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_col_nat);
+    ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_col_ports);
 
     ovsdb_idl_add_column(ctx->idl, &nbrec_logical_switch_port_col_name);
 
@@ -4566,6 +4653,11 @@ nbctl_pre_lr_nat_add(struct ctl_context *ctx)
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_logical_port);
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_external_mac);
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_options);
+
+    ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_port_col_networks);
+    ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_port_col_mac);
+    ovsdb_idl_add_column(ctx->idl,
+                         &nbrec_logical_router_port_col_gateway_chassis);
 }
 
 static void
@@ -4735,12 +4827,16 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
                             should_return = true;
                         }
                 } else {
-                    ctl_error(ctx, "a NAT with this type (%s) and %s (%s) "
-                              "already exists",
-                              nat_type,
-                              is_snat ? "logical_ip" : "external_ip",
-                              is_snat ? new_logical_ip : new_external_ip);
-                    should_return = true;
+                    if (!is_snat ||
+                        is_snat_rule_conflict(lr, new_external_ip,
+                                              old_external_ip, is_v6)) {
+                        ctl_error(ctx, "a NAT with this type (%s) and %s (%s) "
+                                  "already exists",
+                                  nat_type,
+                                  is_snat ? "logical_ip" : "external_ip",
+                                  is_snat ? new_logical_ip : new_external_ip);
+                        should_return = true;
+                    }
                 }
             }
         }
@@ -4850,6 +4946,21 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
     }
 
     int is_snat = !strcmp("snat", nat_type);
+    char *snat_external_ip = NULL;
+    if (ctx->argc == 5) {
+        if (is_snat) {
+            snat_external_ip = nat_ip;
+            nat_ip = normalize_prefix_str(ctx->argv[4]);
+            if (!snat_external_ip) {
+                ctl_error(ctx, "%s: Invalid IP address or CIDR", ctx->argv[4]);
+            }
+        } else {
+            ctl_error(ctx, "%s type takes a maximum of one ip address",
+                      nat_type);
+        }
+    }
+    bool is_exist = false;
+
     /* Remove the matching NAT. */
     for (size_t i = 0; i < lr->n_nat; i++) {
         struct nbrec_nat *nat = lr->nat[i];
@@ -4861,8 +4972,29 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
             continue;
         }
         if (!strcmp(nat_type, nat->type) && !strcmp(nat_ip, old_ip)) {
-            nbrec_logical_router_update_nat_delvalue(lr, nat);
-            should_return = true;
+            if (snat_external_ip != NULL) {
+                char *old_external_ip = normalize_prefix_str(nat->external_ip);
+                if (!old_external_ip) {
+                    continue;
+                }
+                if (!strcmp(snat_external_ip, old_external_ip)) {
+                    nbrec_logical_router_update_nat_delvalue(lr, nat);
+                    free(old_external_ip);
+                    is_exist = true;
+                    should_return = true;
+                }
+            } else {
+                nbrec_logical_router_update_nat_delvalue(lr, nat);
+                /* When nat_type is snat and external_ip is not specified, we
+                 * need to iterate over all the rules and delete all nat entries
+                 * matching the logical ip. Hence don't set should_return for
+                 * snat case.
+                 */
+                if (!is_snat) {
+                    should_return = true;
+                }
+                is_exist = true;
+            }
         }
         free(old_ip);
         if (should_return) {
@@ -4870,13 +5002,16 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
         }
     }
 
-    if (must_exist) {
+    if (must_exist && !is_exist) {
         ctl_error(ctx, "no matching NAT with the type (%s) and %s (%s)",
                   nat_type, is_snat ? "logical_ip" : "external_ip", nat_ip);
     }
 
 cleanup:
     free(nat_ip);
+    if (snat_external_ip != NULL) {
+        free(snat_external_ip);
+    }
 }
 
 static void
@@ -7100,7 +7235,7 @@ static const struct ctl_command_syntax nbctl_commands[] = {
       "[LOGICAL_PORT EXTERNAL_MAC] [EXTERNAL_PORT_RANGE]",
       nbctl_pre_lr_nat_add, nbctl_lr_nat_add,
       NULL, "--may-exist,--stateless,--portrange,--add-route", RW },
-    { "lr-nat-del", 1, 3, "ROUTER [TYPE [IP]]",
+    { "lr-nat-del", 1, 4, "ROUTER [TYPE [IP [LOGICAL_IP]]]",
       nbctl_pre_lr_nat_del, nbctl_lr_nat_del, NULL, "--if-exists", RW },
     { "lr-nat-list", 1, 1, "ROUTER", nbctl_pre_lr_nat_list,
       nbctl_lr_nat_list, NULL, "", RO },
