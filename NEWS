@@ -1,5 +1,6 @@
 Post v22.03.0
 -------------
+  - Support NAT with multiple distributed gateway ports on a logical router.
 
 OVN v22.03.0 - XX XXX XXXX
 --------------------------
