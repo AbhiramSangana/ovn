@@ -2552,8 +2552,8 @@
       <p>
         There can be more than one distributed gateway ports configured
         on each logical router, each connecting to different L2 segments.
-        However, features such as NAT and load-balancer are not supported
-        on logical routers with more than one distributed gateway ports.
+        Load-balancing is not yet supported on logical routers with more
+        than one distributed gateway ports.
       </p>
 
       <p>
