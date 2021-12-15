@@ -1621,6 +1621,49 @@ is_cr_port(const struct ovn_port *op)
     return op->l3dgw_port;
 }
 
+/* Checks if the IP address (assumed valid) represented by string 'address' is
+ * in one of the networks of the logical router port 'op'. */
+static bool
+ip_in_lrp_networks(const struct ovn_port *op, const char *address) {
+    ovs_be32 ip, mask;
+    struct in6_addr ipv6, mask_v6;
+
+    char *error = ip_parse_masked(address, &ip, &mask);
+    bool is_v6 = false;
+
+    if (error || mask != OVS_BE32_MAX) {
+        free(error);
+        ipv6_parse_masked(address, &ipv6, &mask_v6);
+        is_v6 = true;
+    }
+
+    struct lport_addresses lrp_networks;
+    extract_lrp_networks(op->nbrp, &lrp_networks);
+
+    bool ip_in_net = false;
+    if (is_v6) {
+        for (int i = 0; i < lrp_networks.n_ipv6_addrs; i++) {
+            struct ipv6_netaddr *lrp6_addr = &(lrp_networks.ipv6_addrs[i]);
+            struct in6_addr ip6_mask = ipv6_addr_bitand(&lrp6_addr->mask,
+                                                        &ipv6);
+
+            if (ipv6_addr_equals(&ip6_mask, &(lrp6_addr->network))) {
+                ip_in_net = true;
+            }
+        }
+    } else {
+        for (int i = 0; i < lrp_networks.n_ipv4_addrs; i++) {
+            struct ipv4_netaddr *lrp4_addr = &(lrp_networks.ipv4_addrs[i]);
+
+            if ((ip & lrp4_addr->mask) == lrp4_addr->network) {
+                ip_in_net = true;
+            }
+        }
+    }
+    destroy_lport_addresses(&lrp_networks);
+    return ip_in_net;
+}
+
 static void
 destroy_routable_addresses(struct ovn_port_routable_addresses *ra)
 {
@@ -2695,8 +2738,9 @@ join_logical_ports(struct northd_input *input_data,
  * port, followed by 'is_chassis_resident("LPORT_NAME")', where the
  * LPORT_NAME is the name of the L3 redirect port or the name of the
  * logical_port specified in a NAT rule.  These strings include the
- * external IP addresses of all NAT rules defined on that router, and all
- * of the IP addresses used in load balancer VIPs defined on that router.
+ * external IP addresses of NAT rules defined on that router which are in the
+ * same network as the router port 'op', and all of the IP addresses used in
+ * load balancer VIPs defined on that router.
  *
  * The caller must free each of the n returned strings with free(),
  * and must free the returned array when it is no longer needed. */
@@ -2734,6 +2778,10 @@ get_nat_addresses(const struct ovn_port *op, size_t *n, bool routable_only)
         char *error = ip_parse_masked(nat->external_ip, &ip, &mask);
         if (error || mask != OVS_BE32_MAX) {
             free(error);
+            continue;
+        }
+
+        if (!ip_in_lrp_networks(op, nat->external_ip)) {
             continue;
         }
 
@@ -2805,12 +2853,9 @@ get_nat_addresses(const struct ovn_port *op, size_t *n, bool routable_only)
     if (central_ip_address) {
         /* Gratuitous ARP for centralized NAT rules on distributed gateway
          * ports should be restricted to the gateway chassis. */
-        if (op->od->n_l3dgw_ports) {
-            const struct ovn_port *l3dgw_port = (is_l3dgw_port(op)
-                                                 ? op
-                                                 : op->od->l3dgw_ports[0]);
+        if (is_l3dgw_port(op)) {
             ds_put_format(&c_addresses, " is_chassis_resident(%s)",
-                          l3dgw_port->cr_port->json_key);
+                          op->cr_port->json_key);
         }
 
         addresses[n_nats++] = ds_steal_cstr(&c_addresses);
@@ -3438,12 +3483,9 @@ ovn_port_update_sbrec(struct northd_input *input_data,
                                   op->peer->lrp_networks.ipv4_addrs[i].addr_s);
                 }
 
-                if (op->peer->od->n_l3dgw_ports) {
-                    const struct ovn_port *l3dgw_port = (
-                        is_l3dgw_port(op->peer) ? op->peer
-                                                : op->peer->od->l3dgw_ports[0]);
+                if (is_l3dgw_port(op->peer)) {
                     ds_put_format(&garp_info, " is_chassis_resident(%s)",
-                                  l3dgw_port->cr_port->json_key);
+                                  op->peer->cr_port->json_key);
                 }
 
                 n_nats++;
@@ -10220,13 +10262,9 @@ build_lrouter_port_nat_arp_nd_flow(struct ovn_port *op,
          * upstream MAC learning points to the gateway chassis.
          * Also need to avoid generation of multiple ARP responses
          * from different chassis. */
-        if (op->od->n_l3dgw_ports) {
-            const struct ovn_port *l3dgw_port = (is_l3dgw_port(op)
-                                                 ? op
-                                                 : op->od->l3dgw_ports[0]);
-            ds_put_format(&match, "is_chassis_resident(%s)",
-                          l3dgw_port->cr_port->json_key);
-        }
+        ovs_assert(is_l3dgw_port(op));
+        ds_put_format(&match, "is_chassis_resident(%s)",
+                      op->cr_port->json_key);
     }
 
     /* Respond to ARP/NS requests on the chassis that binds the gw
@@ -12460,7 +12498,7 @@ build_lrouter_in_unsnat_flow(struct hmap *lflows, struct ovn_datapath *od,
         ds_put_format(match, "ip && ip%s.dst == %s && inport == %s && "
                       "flags.loopback == 0", is_v6 ? "6" : "4",
                       nat->external_ip, l3dgw_port->json_key);
-        if (!distributed) {
+        if (!distributed && od->n_l3dgw_ports) {
             /* Flows for NAT rules that are centralized are only
             * programmed on the gateway chassis. */
             ds_put_format(match, " && is_chassis_resident(%s)",
@@ -12610,7 +12648,7 @@ build_lrouter_out_undnat_flow(struct hmap *lflows, struct ovn_datapath *od,
     ds_put_format(match, "ip && ip%s.src == %s && outport == %s",
                   is_v6 ? "6" : "4", nat->logical_ip,
                   l3dgw_port->json_key);
-    if (!distributed) {
+    if (!distributed && od->n_l3dgw_ports) {
         /* Flows for NAT rules that are centralized are only
         * programmed on the gateway chassis. */
         ds_put_format(match, " && is_chassis_resident(%s)",
@@ -12720,18 +12758,18 @@ build_lrouter_out_snat_flow(struct hmap *lflows, struct ovn_datapath *od,
         ds_put_format(match, "ip && ip%s.src == %s && outport == %s",
                       is_v6 ? "6" : "4", nat->logical_ip,
                       l3dgw_port->json_key);
-
-        if (distributed) {
-            ovs_assert(nat->logical_port);
-            priority += 128;
-            ds_put_format(match, " && is_chassis_resident(\"%s\")",
-                          nat->logical_port);
-        } else {
-            /* Flows for NAT rules that are centralized are only
-            * programmed on the gateway chassis. */
-            priority += 128;
-            ds_put_format(match, " && is_chassis_resident(%s)",
-                          l3dgw_port->cr_port->json_key);
+        if (od->n_l3dgw_ports) {
+            if (distributed) {
+                ovs_assert(nat->logical_port);
+                priority += 128;
+                ds_put_format(match, " && is_chassis_resident(\"%s\")",
+                              nat->logical_port);
+            } else {
+                /* Flows for NAT rules that are centralized are only
+                * programmed on the gateway chassis. */
+                priority += 128;
+                ds_put_format(match, " && is_chassis_resident(%s)",
+                              l3dgw_port->cr_port->json_key);
         }
         ds_clear(actions);
 
@@ -12948,42 +12986,11 @@ lrouter_check_nat_entry(struct ovn_datapath *od, const struct nbrec_nat *nat,
     *nat_l3dgw_port = NULL;
 
     for (size_t i = 0; i < od->n_l3dgw_ports; i++) {
-        struct ovn_port *l3dgw_port = od->l3dgw_ports[i];
-        struct lport_addresses lrp_networks;
-
-        if (!extract_lrp_networks(l3dgw_port->nbrp, &lrp_networks)) {
-            static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(1, 1);
-            VLOG_WARN_RL(&rl, "Extract addresses failed.");
-            continue;
-        }
-
-        if (*is_v6) {
-            for (int j = 0; j < lrp_networks.n_ipv6_addrs; j++) {
-                struct ipv6_netaddr *lrp6_addr = &(lrp_networks.ipv6_addrs[j]);
-                struct in6_addr ip6_mask = ipv6_addr_bitand(&lrp6_addr->mask,
-                                                            &ipv6);
-
-                if (ipv6_addr_equals(&ip6_mask, &(lrp6_addr->network))) {
-                    destroy_lport_addresses(&lrp_networks);
-                    *nat_l3dgw_port = l3dgw_port;
-                    goto next;
-                }
-            }
-        } else {
-            for (int j = 0; j < lrp_networks.n_ipv4_addrs; j++) {
-                struct ipv4_netaddr *lrp4_addr =
-                                    &(lrp_networks.ipv4_addrs[j]);
-
-                if ((ip & lrp4_addr->mask) == lrp4_addr->network) {
-                    destroy_lport_addresses(&lrp_networks);
-                    *nat_l3dgw_port = l3dgw_port;
-                    goto next;
-                }
-            }
+        if (ip_in_lrp_networks(od->l3dgw_ports[i], nat->external_ip)) {
+            *nat_l3dgw_port = od->l3dgw_ports[i];
         }
     }
 
-next:
     if (od->n_l3dgw_ports && *nat_l3dgw_port == NULL) {
         static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 1);
         VLOG_WARN_RL(&rl, "Could not map NAT external ip: %s to a "
