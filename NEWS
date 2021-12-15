@@ -1,5 +1,6 @@
 Post v21.12.0
 -------------
+  - Support NAT with multiple distributed gateway ports on a logical router.
 
 OVN v21.12.0 - xx xxx xxxx
 --------------------------
@@ -21,7 +22,6 @@ OVN v21.12.0 - xx xxx xxxx
   - ovn-controller: Add configuration knob, through OVS external-id
     "ovn-trim-timeout-ms" to allow specifiying an lflow cache inactivity
     timeout after which ovn-controller should trim memory.
-  - Support NAT with multiple distributed gateway ports on a logical router.
 
 OVN v21.09.0 - 01 Oct 2021
 --------------------------
