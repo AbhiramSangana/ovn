@@ -11951,7 +11951,7 @@ build_ipv6_input_flows_for_lrouter_port(
         struct ds *match, struct ds *actions,
         const struct shash *meter_groups)
 {
-    if (op->nbrp && (!op->l3dgw_port)) {
+    if (op->nbrp && !is_cr_port(op)) {
         /* No ingress packets are accepted on a chassisredirect
          * port, so no need to program flows for that port. */
         if (op->lrp_networks.n_ipv6_addrs) {
@@ -12080,7 +12080,7 @@ build_ipv6_input_flows_for_lrouter_port(
             ds_clear(match);
             ds_clear(actions);
             ds_clear(&ip_ds);
-            if (op->od->n_l3dgw_ports && op->od->l3dgw_ports[0] == op) {
+            if (is_l3dgw_port(op)) {
                 ds_put_cstr(&ip_ds, "ip6.dst <-> ip6.src");
             } else {
                 ds_put_format(&ip_ds, "ip6.dst = ip6.src; ip6.src = %s",
@@ -12170,7 +12170,7 @@ build_lrouter_ipv4_ip_input(struct ovn_port *op,
 {
     /* No ingress packets are accepted on a chassisredirect
      * port, so no need to program flows for that port. */
-    if (op->nbrp && (!op->l3dgw_port)) {
+    if (op->nbrp && !is_cr_port(op)) {
         if (op->lrp_networks.n_ipv4_addrs) {
             /* L3 admission control: drop packets that originate from an
              * IPv4 address owned by the router or a broadcast address
@@ -12212,7 +12212,7 @@ build_lrouter_ipv4_ip_input(struct ovn_port *op,
             ds_clear(match);
             ds_clear(actions);
             ds_clear(&ip_ds);
-            if (op->od->n_l3dgw_ports && op->od->l3dgw_ports[0] == op) {
+            if (is_l3dgw_port(op)) {
                 ds_put_cstr(&ip_ds, "ip4.dst <-> ip4.src");
             } else {
                 ds_put_format(&ip_ds, "ip4.dst = ip4.src; ip4.src = %s",
@@ -12522,12 +12522,12 @@ build_lrouter_in_unsnat_flow(struct hmap *lflows, struct ovn_datapath *od,
             ds_put_format(match, "ip && ip%s.dst == %s && inport == %s && "
                           "flags.loopback == 1 && flags.use_snat_zone == 1",
                           is_v6 ? "6" : "4", nat->external_ip,
-                          od->l3dgw_ports[0]->json_key);
+                          l3dgw_port->json_key);
             if (!distributed && od->n_l3dgw_ports) {
                 /* Flows for NAT rules that are centralized are only
                 * programmed on the gateway chassis. */
                 ds_put_format(match, " && is_chassis_resident(%s)",
-                            od->l3dgw_ports[0]->cr_port->json_key);
+                            l3dgw_port->cr_port->json_key);
             }
             ds_put_cstr(actions, "ct_snat;");
             ovn_lflow_add_with_hint(lflows, od, S_ROUTER_IN_UNSNAT,
@@ -12678,7 +12678,7 @@ static void
 build_lrouter_out_is_dnat_local(struct hmap *lflows, struct ovn_datapath *od,
                                 const struct nbrec_nat *nat, struct ds *match,
                                 struct ds *actions, bool distributed,
-                                bool is_v6)
+                                bool is_v6, struct ovn_port *l3dgw_port)
 {
     /* Note that this only applies for NAT on a distributed router.
      */
@@ -12693,7 +12693,7 @@ build_lrouter_out_is_dnat_local(struct hmap *lflows, struct ovn_datapath *od,
         ds_put_format(match, "is_chassis_resident(\"%s\")", nat->logical_port);
     } else {
         ds_put_format(match, "is_chassis_resident(%s)",
-                      od->l3dgw_ports[0]->cr_port->json_key);
+                      l3dgw_port->cr_port->json_key);
     }
 
     ds_clear(actions);
@@ -12827,13 +12827,13 @@ build_lrouter_ingress_nat_check_pkt_len(struct hmap *lflows,
                                         const struct nbrec_nat *nat,
                                         struct ovn_datapath *od, bool is_v6,
                                         struct ds *match, struct ds *actions,
-                                        int mtu,
+                                        int mtu, struct ovn_port *l3dgw_port,
                                         const struct shash *meter_groups)
 {
         ds_clear(match);
         ds_put_format(match, "inport == %s && "REGBIT_PKT_LARGER
                       " && "REGBIT_EGRESS_LOOPBACK" == 0",
-                      od->l3dgw_ports[0]->json_key);
+                      l3dgw_port->json_key);
 
         ds_clear(actions);
         if (!is_v6) {
@@ -12854,7 +12854,7 @@ build_lrouter_ingress_nat_check_pkt_len(struct hmap *lflows,
                 "outport = %s; flags.loopback = 1; output; };",
                 nat->external_mac,
                 nat->external_ip,
-                mtu, od->l3dgw_ports[0]->json_key);
+                mtu, l3dgw_port->json_key);
             ovn_lflow_add_with_hint__(lflows, od, S_ROUTER_IN_IP_INPUT, 160,
                                       ds_cstr(match), ds_cstr(actions),
                                       NULL,
@@ -12881,7 +12881,7 @@ build_lrouter_ingress_nat_check_pkt_len(struct hmap *lflows,
                 "outport = %s; flags.loopback = 1; output; };",
                 nat->external_mac,
                 nat->external_ip,
-                mtu, od->l3dgw_ports[0]->json_key);
+                mtu, l3dgw_port->json_key);
             ovn_lflow_add_with_hint__(lflows, od, S_ROUTER_IN_IP_INPUT, 160,
                                       ds_cstr(match), ds_cstr(actions),
                                       NULL,
@@ -12930,15 +12930,15 @@ build_lrouter_ingress_flow(struct hmap *lflows, struct ovn_datapath *od,
                       ETH_ADDR_ARGS(mac),
                       l3dgw_port->json_key,
                       nat->logical_port);
-        build_gateway_mtu_flow(lflows, od->l3dgw_ports[0],
+        build_gateway_mtu_flow(lflows, l3dgw_port,
                                S_ROUTER_IN_ADMISSION, 50, 55,
                                match, actions, &nat->header_,
                                REG_INPORT_ETH_ADDR " = %s; next;",
-                               od->l3dgw_ports[0]->lrp_networks.ea_s);
+                               l3dgw_port->lrp_networks.ea_s);
         if (gw_mtu) {
             build_lrouter_ingress_nat_check_pkt_len(lflows, nat, od, is_v6,
                                                     match, actions, gw_mtu,
-                                                    meter_groups);
+                                                    l3dgw_port, meter_groups);
         }
     }
 }
@@ -13161,7 +13161,7 @@ build_lrouter_nat_defrag_and_lb(struct ovn_datapath *od, struct hmap *lflows,
 
         /* S_ROUTER_OUT_DNAT_LOCAL */
         build_lrouter_out_is_dnat_local(lflows, od, nat, match, actions,
-                                        distributed, is_v6);
+                                        distributed, is_v6, l3dgw_port);
 
         /* S_ROUTER_OUT_UNDNAT */
         build_lrouter_out_undnat_flow(lflows, od, nat, match, actions, distributed,
