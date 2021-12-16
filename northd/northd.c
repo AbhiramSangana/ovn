@@ -12770,6 +12770,7 @@ build_lrouter_out_snat_flow(struct hmap *lflows, struct ovn_datapath *od,
                 priority += 128;
                 ds_put_format(match, " && is_chassis_resident(%s)",
                               l3dgw_port->cr_port->json_key);
+            }
         }
         ds_clear(actions);
 
