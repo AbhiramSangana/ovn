@@ -2751,8 +2751,7 @@ get_nat_addresses(const struct ovn_port *op, size_t *n, bool routable_only)
     struct eth_addr mac;
     if (!op || !op->nbrp || !op->od || !op->od->nbr
         || (!op->od->nbr->n_nat && !op->od->has_lb_vip)
-        || !eth_addr_from_string(op->nbrp->mac, &mac)
-        || op->od->n_l3dgw_ports > 1) {
+        || !eth_addr_from_string(op->nbrp->mac, &mac)) {
         *n = n_nats;
         return NULL;
     }

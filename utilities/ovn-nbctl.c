@@ -381,7 +381,7 @@ NAT commands:\n\
   lr-nat-add ROUTER TYPE EXTERNAL_IP LOGICAL_IP [LOGICAL_PORT EXTERNAL_MAC]\n\
                             [EXTERNAL_PORT_RANGE]\n\
                             add a NAT to ROUTER\n\
-  lr-nat-del ROUTER [TYPE [IP [EXTERNAL_IP]]]\n\
+  lr-nat-del ROUTER [TYPE [IP [LOGICAL_IP]]]\n\
                             remove NATs from ROUTER\n\
   lr-nat-list ROUTER        print NATs for ROUTER\n\
 \n\
@@ -4483,8 +4483,8 @@ nbctl_lr_route_del(struct ctl_context *ctx)
 }
 
 static bool
-is_nat_rule_conflict(const struct nbrec_logical_router *lr,
-                     char *new_external_ip, char *old_external_ip, bool is_v6)
+is_snat_rule_conflict(const struct nbrec_logical_router *lr,
+                      char *new_external_ip, char *old_external_ip, bool is_v6)
 {
     int num_l3dgw_ports = 0;
     bool is_conflict = false;
@@ -4813,8 +4813,8 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
                         }
                 } else {
                     if (!is_snat ||
-                        is_nat_rule_conflict(lr, new_external_ip,
-                                             old_external_ip, is_v6)) {
+                        is_snat_rule_conflict(lr, new_external_ip,
+                                              old_external_ip, is_v6)) {
                         ctl_error(ctx, "a NAT with this type (%s) and %s (%s) "
                                   "already exists",
                                   nat_type,
@@ -4931,11 +4931,12 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
     }
 
     int is_snat = !strcmp("snat", nat_type);
-    char *nat_external_ip = NULL;
+    char *snat_external_ip = NULL;
     if (ctx->argc == 5) {
         if (is_snat) {
-            nat_external_ip = normalize_prefix_str(ctx->argv[4]);
-            if (!nat_external_ip) {
+            snat_external_ip = nat_ip;
+            nat_ip = normalize_prefix_str(ctx->argv[4]);
+            if (!snat_external_ip) {
                 ctl_error(ctx, "%s: Invalid IP address or CIDR", ctx->argv[4]);
             }
         } else {
@@ -4956,12 +4957,12 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
             continue;
         }
         if (!strcmp(nat_type, nat->type) && !strcmp(nat_ip, old_ip)) {
-            if (nat_external_ip != NULL) {
+            if (snat_external_ip != NULL) {
                 char *old_external_ip = normalize_prefix_str(nat->external_ip);
                 if (!old_external_ip) {
                     continue;
                 }
-                if (!strcmp(nat_external_ip, old_external_ip)) {
+                if (!strcmp(snat_external_ip, old_external_ip)) {
                     nbrec_logical_router_update_nat_delvalue(lr, nat);
                     free(old_external_ip);
                     is_exist = true;
@@ -4993,8 +4994,8 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
 
 cleanup:
     free(nat_ip);
-    if (nat_external_ip != NULL) {
-        free(nat_external_ip);
+    if (snat_external_ip != NULL) {
+        free(snat_external_ip);
     }
 }
 
@@ -7243,7 +7244,7 @@ static const struct ctl_command_syntax nbctl_commands[] = {
       "[LOGICAL_PORT EXTERNAL_MAC] [EXTERNAL_PORT_RANGE]",
       nbctl_pre_lr_nat_add, nbctl_lr_nat_add,
       NULL, "--may-exist,--stateless,--portrange,--add-route", RW },
-    { "lr-nat-del", 1, 4, "ROUTER [TYPE [IP [EXTERNAL_IP]]]",
+    { "lr-nat-del", 1, 4, "ROUTER [TYPE [IP [LOGICAL_IP]]]",
       nbctl_pre_lr_nat_del, nbctl_lr_nat_del, NULL, "--if-exists", RW },
     { "lr-nat-list", 1, 1, "ROUTER", nbctl_pre_lr_nat_list,
       nbctl_lr_nat_list, NULL, "", RO },
