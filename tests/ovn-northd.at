@@ -5910,7 +5910,7 @@ check ovn-nbctl lr-add DR
 check ovn-nbctl lrp-add DR DR-S1 02:ac:10:01:00:01 172.16.1.1/24
 check ovn-nbctl lrp-add DR DR-S2 03:ac:10:01:00:01 10.0.0.1/24
 check ovn-nbctl lrp-add DR DR-S3 04:ac:10:01:00:01 192.168.0.1/24
-check ovn-nbctl lrp-add DR DR-ls 05:ac:10:01:00:01 20.0.0.0/24
+check ovn-nbctl lrp-add DR DR-ls 05:ac:10:01:00:01 20.0.0.1/24
 
 check ovn-nbctl ls-add S1
 check ovn-nbctl lsp-add S1 S1-DR
@@ -5951,6 +5951,21 @@ check ovn-nbctl lr-nat-add DR snat  192.168.123.10 20.0.0.10
 ovn-sbctl dump-flows DR > lrflows
 AT_CAPTURE_FILE([lrflows])
 
+check_lr_in_arp_nat_flows() {
+    AT_CHECK([grep lr_in_ip_input lrflows | grep is_chassis_resident | sed 's/table=../table=??/' | sort], [0], [dnl
+  table=??(lr_in_ip_input     ), priority=90   , match=(arp.op == 1 && arp.tpa == 10.0.0.10), action=(eth.dst = eth.src; eth.src = xreg0[[0..47]]; arp.op = 2; /* ARP reply */ arp.tha = arp.sha; arp.sha = xreg0[0..47]; arp.tpa <-> arp.spa; outport = inport; flags.loopback = 1; output;)
+  table=??(lr_in_ip_input     ), priority=90   , match=(arp.op == 1 && arp.tpa == 172.16.1.10), action=(eth.dst = eth.src; eth.src = xreg0[[0..47]]; arp.op = 2; /* ARP reply */ arp.tha = arp.sha; arp.sha = xreg0[0..47]; arp.tpa <-> arp.spa; outport = inport; flags.loopback = 1; output;)
+  table=??(lr_in_ip_input     ), priority=90   , match=(arp.op == 1 && arp.tpa == 192.168.0.10), action=(eth.dst = eth.src; eth.src = xreg0[[0..47]]; arp.op = 2; /* ARP reply */ arp.tha = arp.sha; arp.sha = xreg0[0..47]; arp.tpa <-> arp.spa; outport = inport; flags.loopback = 1; output;)
+  table=??(lr_in_ip_input     ), priority=90   , match=(arp.op == 1 && arp.tpa == 192.168.123.10), action=(eth.dst = eth.src; eth.src = xreg0[[0..47]]; arp.op = 2; /* ARP reply */ arp.tha = arp.sha; arp.sha = xreg0[0..47]; arp.tpa <-> arp.spa; outport = inport; flags.loopback = 1; output;)
+  table=??(lr_in_ip_input     ), priority=91   , match=(inport == "DR-S1" && arp.op == 1 && arp.tpa == 172.16.1.10), action=(drop;)
+  table=??(lr_in_ip_input     ), priority=91   , match=(inport == "DR-S2" && arp.op == 1 && arp.tpa == 10.0.0.10), action=(drop;)
+  table=??(lr_in_ip_input     ), priority=91   , match=(inport == "DR-S3" && arp.op == 1 && arp.tpa == 192.168.0.10), action=(drop;)
+  table=??(lr_in_ip_input     ), priority=92   , match=(inport == "DR-S1" && arp.op == 1 && arp.tpa == 172.16.1.10 && is_chassis_resident("cr-DR-S1")), action=(eth.dst = eth.src; eth.src = xreg0[0..47]; arp.op = 2; /* ARP reply */ arp.tha = arp.sha; arp.sha = xreg0[[0..47]]; arp.tpa <-> arp.spa; outport = inport; flags.loopback = 1; output;)
+  table=??(lr_in_ip_input     ), priority=92   , match=(inport == "DR-S2" && arp.op == 1 && arp.tpa == 10.0.0.10 && is_chassis_resident("cr-DR-S2")), action=(eth.dst = eth.src; eth.src = xreg0[0..47]; arp.op = 2; /* ARP reply */ arp.tha = arp.sha; arp.sha = xreg0[[0..47]]; arp.tpa <-> arp.spa; outport = inport; flags.loopback = 1; output;)
+  table=??(lr_in_ip_input     ), priority=92   , match=(inport == "DR-S3" && arp.op == 1 && arp.tpa == 192.168.0.10 && is_chassis_resident("cr-DR-S3")), action=(eth.dst = eth.src; eth.src = xreg0[0..47]; arp.op = 2; /* ARP reply */ arp.tha = arp.sha; arp.sha = xreg0[[0..47]]; arp.tpa <-> arp.spa; outport = inport; flags.loopback = 1; output;)
+])
+}
+
 check_lr_in_unsnat_flows() {
     AT_CHECK([grep lr_in_unsnat lrflows | grep ct_snat | sed 's/table=../table=??/' | sort], [0], [dnl
   table=??(lr_in_unsnat       ), priority=100  , match=(ip && ip4.dst == 10.0.0.10 && inport == "DR-S2" && flags.loopback == 0 && is_chassis_resident("cr-DR-S2")), action=(ct_snat_in_czone;)
@@ -5975,6 +5990,7 @@ check_lr_out_snat_flows() {
 
 check_lr_in_unsnat_flows
 check_lr_out_snat_flows
+check_lr_in_arp_nat_flows
 
 check ovn-nbctl lr-nat-del DR snat 20.0.0.10
 AT_CHECK([ovn-sbctl dump-flows DR | grep -e lr_in_unsnat -e lr_out_snat | grep ct_snat | wc -l], [0], [0
@@ -6007,6 +6023,7 @@ check_lr_out_undnat_flows() {
 
 check_lr_in_dnat_flows
 check_lr_out_undnat_flows
+check_lr_in_arp_nat_flows
 
 check ovn-nbctl lr-nat-del DR dnat  172.16.1.10
 check ovn-nbctl lr-nat-del DR dnat  10.0.0.10
@@ -6029,6 +6046,7 @@ check_lr_in_unsnat_flows
 check_lr_out_snat_flows
 check_lr_in_dnat_flows
 check_lr_out_undnat_flows
+check_lr_in_arp_nat_flows
 
 check ovn-nbctl lr-nat-del DR dnat_and_snat  172.16.1.10
 check ovn-nbctl lr-nat-del DR dnat_and_snat  10.0.0.10

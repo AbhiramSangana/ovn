@@ -767,7 +767,7 @@ dnat             172.64.1.20                         20.0.0.20
 snat             172.64.1.10                         20.0.0.10
 snat             192.168.1.10                        20.0.0.10
 ])
-AT_CHECK([ovn-nbctl lr-nat-del lr0 snat 20.0.0.10 172.64.1.10])
+AT_CHECK([ovn-nbctl lr-nat-del lr0 snat 172.64.1.10 20.0.0.10])
 AT_CHECK([ovn-nbctl lr-nat-list lr0], [0], [dnl
 TYPE             EXTERNAL_IP        EXTERNAL_PORT    LOGICAL_IP            EXTERNAL_MAC         LOGICAL_PORT
 dnat             172.64.1.20                         20.0.0.20

@@ -10241,6 +10241,12 @@ build_lrouter_port_nat_arp_nd_flow(struct ovn_port *op,
     const struct nbrec_nat *nat = nat_entry->nb;
     struct ds match = DS_EMPTY_INITIALIZER;
 
+    /* ARP/ND should be sent from router port that is in the same subnet as
+     * the NAT external IP. */
+    if (!ip_in_lrp_networks(op, nat->external_ip)) {
+        return;
+    }
+
     /* Mac address to use when replying to ARP/NS. */
     const char *mac_s = REG_INPORT_ETH_ADDR;
     struct eth_addr mac;
