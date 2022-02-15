@@ -474,6 +474,12 @@
                             "refType": "strong"},
                     "min": 0,
                     "max": 1}},
+                "gateway_port": {
+                    "type": {"key": {"type": "uuid",
+                                     "refTable": "Logical_Router_Port",
+                                     "refType": "strong"},
+                             "min": 0,
+                             "max": 1}},
                 "options": {"type": {"key": "string", "value": "string",
                                      "min": 0, "max": "unlimited"}},
                 "external_ids": {

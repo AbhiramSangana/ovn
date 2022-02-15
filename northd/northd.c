@@ -1621,49 +1621,6 @@ is_cr_port(const struct ovn_port *op)
     return op->l3dgw_port;
 }
 
-/* Checks if the IP address (assumed valid) represented by string 'address' is
- * in one of the networks of the logical router port 'op'. */
-static bool
-ip_in_lrp_networks(const struct ovn_port *op, const char *address) {
-    ovs_be32 ip, mask;
-    struct in6_addr ipv6, mask_v6;
-
-    char *error = ip_parse_masked(address, &ip, &mask);
-    bool is_v6 = false;
-
-    if (error || mask != OVS_BE32_MAX) {
-        free(error);
-        ipv6_parse_masked(address, &ipv6, &mask_v6);
-        is_v6 = true;
-    }
-
-    struct lport_addresses lrp_networks;
-    extract_lrp_networks(op->nbrp, &lrp_networks);
-
-    bool ip_in_net = false;
-    if (is_v6) {
-        for (int i = 0; i < lrp_networks.n_ipv6_addrs; i++) {
-            struct ipv6_netaddr *lrp6_addr = &(lrp_networks.ipv6_addrs[i]);
-            struct in6_addr ip6_mask = ipv6_addr_bitand(&lrp6_addr->mask,
-                                                        &ipv6);
-
-            if (ipv6_addr_equals(&ip6_mask, &(lrp6_addr->network))) {
-                ip_in_net = true;
-            }
-        }
-    } else {
-        for (int i = 0; i < lrp_networks.n_ipv4_addrs; i++) {
-            struct ipv4_netaddr *lrp4_addr = &(lrp_networks.ipv4_addrs[i]);
-
-            if ((ip & lrp4_addr->mask) == lrp4_addr->network) {
-                ip_in_net = true;
-            }
-        }
-    }
-    destroy_lport_addresses(&lrp_networks);
-    return ip_in_net;
-}
-
 static void
 destroy_routable_addresses(struct ovn_port_routable_addresses *ra)
 {
@@ -2780,7 +2737,7 @@ get_nat_addresses(const struct ovn_port *op, size_t *n, bool routable_only)
             continue;
         }
 
-        if (!ip_in_lrp_networks(op, nat->external_ip)) {
+        if (nat->gateway_port && nat->gateway_port != op->nbrp) {
             continue;
         }
 
@@ -10267,9 +10224,9 @@ build_lrouter_port_nat_arp_nd_flow(struct ovn_port *op,
     const struct nbrec_nat *nat = nat_entry->nb;
     struct ds match = DS_EMPTY_INITIALIZER;
 
-    /* ARP/ND should be sent from router port that is in the same subnet as
-     * the NAT external IP. */
-    if (!ip_in_lrp_networks(op, nat->external_ip)) {
+    /* ARP/ND should be sent from distributed gateway port specified in
+     * the NAT rule. */
+    if (nat->gateway_port && nat->gateway_port != op->nbrp) {
         return;
     }
 
@@ -12996,9 +12953,9 @@ build_lrouter_ingress_flow(struct hmap *lflows, struct ovn_datapath *od,
 
 static int
 lrouter_check_nat_entry(struct ovn_datapath *od, const struct nbrec_nat *nat,
-                        ovs_be32 *mask, bool *is_v6, int *cidr_bits,
-                        struct eth_addr *mac, bool *distributed,
-                        struct ovn_port **nat_l3dgw_port)
+                        const struct hmap *ports, ovs_be32 *mask,
+                        bool *is_v6, int *cidr_bits, struct eth_addr *mac,
+                        bool *distributed, struct ovn_port **nat_l3dgw_port)
 {
     struct in6_addr ipv6, mask_v6, v6_exact = IN6ADDR_EXACT_INIT;
     ovs_be32 ip;
@@ -13032,22 +12989,27 @@ lrouter_check_nat_entry(struct ovn_datapath *od, const struct nbrec_nat *nat,
         *is_v6 = true;
     }
 
-    /* Get the l3dgw port (if present) corresponding to the external IP
-     * of the NAT rule. */
+    /* Validate gateway_port of NAT rule. */
     *nat_l3dgw_port = NULL;
-
-    for (size_t i = 0; i < od->n_l3dgw_ports; i++) {
-        if (ip_in_lrp_networks(od->l3dgw_ports[i], nat->external_ip)) {
-            *nat_l3dgw_port = od->l3dgw_ports[i];
+    if (nat->gateway_port == NULL) {
+        if (od->n_l3dgw_ports > 1) {
+            static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 1);
+            VLOG_WARN_RL(&rl, "NAT configured on logical router: %s with"
+                         "multiple distributed gateway ports needs to specify"
+                         "valid gateway_port.", od->nbr->name);
+            return -EINVAL;
+        } else if (od->n_l3dgw_ports) {
+            *nat_l3dgw_port = od->l3dgw_ports[0];
         }
-    }
-
-    if (od->n_l3dgw_ports && *nat_l3dgw_port == NULL) {
-        static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 1);
-        VLOG_WARN_RL(&rl, "Could not map NAT external ip: %s to a "
-                     "distributed gateway port in router "UUID_FMT"",
-                     nat->external_ip, UUID_ARGS(&od->key));
-        return -EINVAL;
+    } else {
+        *nat_l3dgw_port = ovn_port_find(ports, nat->gateway_port->name);
+        if (!is_l3dgw_port(*nat_l3dgw_port)) {
+            static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 1);
+            VLOG_WARN_RL(&rl, "gateway_port: %s of NAT configured on "
+                         "logical router: %s is not a distributed gateway "
+                         "port", nat->gateway_port->name, od->nbr->name);
+            return -EINVAL;
+        }
     }
 
     /* Check the validity of nat->logical_ip. 'logical_ip' can
@@ -13170,7 +13132,7 @@ build_lrouter_nat_defrag_and_lb(struct ovn_datapath *od, struct hmap *lflows,
         int cidr_bits;
         struct ovn_port *l3dgw_port;
 
-        if (lrouter_check_nat_entry(od, nat, &mask, &is_v6, &cidr_bits,
+        if (lrouter_check_nat_entry(od, nat, ports, &mask, &is_v6, &cidr_bits,
                                     &mac, &distributed, &l3dgw_port) < 0) {
             continue;
         }
