@@ -4559,6 +4559,7 @@ nbctl_pre_lr_nat_add(struct ctl_context *ctx)
 {
     ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_col_name);
     ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_col_nat);
+    ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_col_ports);
 
     ovsdb_idl_add_column(ctx->idl, &nbrec_logical_switch_port_col_name);
 
@@ -4567,6 +4568,7 @@ nbctl_pre_lr_nat_add(struct ctl_context *ctx)
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_type);
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_logical_port);
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_external_mac);
+    ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_gateway_port);
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_options);
 
     ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_port_col_name);
@@ -4746,6 +4748,7 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
                 num_l3dgw_ports++;
             }
         }
+        printf("num_l3dgw_ports %"PRId64":\n", num_l3dgw_ports);
         if (num_l3dgw_ports > 1) {
             ctl_error(ctx, "logical router: %s has multiple distributed "
                       "gateway ports. NAT rule needs to specify "
