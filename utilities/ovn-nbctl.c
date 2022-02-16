@@ -4713,8 +4713,8 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
                                                 "--gateway-port");
     const struct nbrec_logical_router_port *dgw_port = NULL;
     if (dgw_port_name) {
-        char *error = lrp_by_name_or_uuid(ctx, dgw_port_name,
-                                          true, &dgw_port);
+        error = lrp_by_name_or_uuid(ctx, dgw_port_name,
+                                    true, &dgw_port);
         if (error) {
             ctx->error = error;
             goto cleanup;
@@ -4725,7 +4725,7 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
             goto cleanup;
         }
     } else {
-        num_l3dgw_ports = 0;
+        int num_l3dgw_ports = 0;
         for (size_t i = 0; i < lr->n_ports; i++) {
             const struct nbrec_logical_router_port *lrp = lr->ports[i];
             if (lrp->ha_chassis_group || lrp->n_gateway_chassis) {
@@ -4901,8 +4901,8 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
                                                 "--gateway-port");
     const struct nbrec_logical_router_port *dgw_port = NULL;
     if (dgw_port_name) {
-        char *error = lrp_by_name_or_uuid(ctx, dgw_port_name,
-                                          true, &dgw_port);
+        error = lrp_by_name_or_uuid(ctx, dgw_port_name,
+                                    true, &dgw_port);
         if (error) {
             ctx->error = error;
             goto cleanup;
