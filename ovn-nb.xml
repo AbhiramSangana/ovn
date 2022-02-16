@@ -3285,6 +3285,21 @@
       </p>
     </column>
 
+    <column name="gateway_port">
+      <p>
+        A distributed gateway <ref table="Logical_Router_Port"/> where the NAT
+        rule needs to be applied.
+      </p>
+
+      <p>
+        When multiple distributed gateway ports are configured on a
+        <ref table="Logical_Router"/>, applying a NAT rule at each of the
+        distributed gateway ports might not be desired. Consider the case
+        where a logical router has 2 distributed gateway ports, one on
+        50.0.0.0/24 network and other on 60.0.0.0/24 network.
+      </p>
+    </column>
+
     <column name="options" key="stateless">
       Indicates if a dnat_and_snat rule should lead to connection
       tracking state or not.

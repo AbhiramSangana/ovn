@@ -4720,19 +4720,28 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
             goto cleanup;
         }
         if (!dgw_port->ha_chassis_group && !dgw_port->n_gateway_chassis) {
-            ctl_error(ctx, "%s: is not a distributed gateway router port.",
+            ctl_error(ctx, "%s is not a distributed gateway router port.",
                       dgw_port_name);
             goto cleanup;
         }
     } else {
-        int num_l3dgw_ports = 0;
+        size_t num_l3dgw_ports = 0;
+        bool nat_lr_port = false;
         for (size_t i = 0; i < lr->n_ports; i++) {
             const struct nbrec_logical_router_port *lrp = lr->ports[i];
             if (lrp->ha_chassis_group || lrp->n_gateway_chassis) {
                 num_l3dgw_ports++;
             }
+            if (lrp == dgw_port) {
+                nat_lr_port = true;
+            }
         }
 
+        if (!nat_lr_port) {
+            ctl_error(ctx, "%s is not a router port of logical router: %s.",
+                      dgw_port_name, ctx->argv[1]);
+            goto cleanup;
+        }
         if (num_l3dgw_ports > 1) {
             ctl_error(ctx, "logical router: %s has multiple distributed "
                       "gateway ports. NAT rule needs to specify "
