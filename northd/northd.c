@@ -13004,7 +13004,7 @@ lrouter_check_nat_entry(struct ovn_datapath *od, const struct nbrec_nat *nat,
     } else {
         *nat_l3dgw_port = ovn_port_find(ports, nat->gateway_port->name);
 
-        if (!nat_l3dgw_port || nat_l3dgw_port->od != od ||
+        if (!(*nat_l3dgw_port) || (*nat_l3dgw_port)->od != od ||
             !is_l3dgw_port(*nat_l3dgw_port)) {
             static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 1);
             VLOG_WARN_RL(&rl, "gateway_port: %s of NAT configured on "
