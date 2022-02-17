@@ -4955,7 +4955,7 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
             should_return = true;
         }
         free(old_ip);
-        if (should_return):
+        if (should_return)
             goto cleanup;
     }
 
