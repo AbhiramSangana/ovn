@@ -4747,7 +4747,6 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
                 num_l3dgw_ports++;
             }
         }
-        printf("num_l3dgw_ports %"PRId64":\n", num_l3dgw_ports);
         if (num_l3dgw_ports > 1) {
             ctl_error(ctx, "logical router: %s has multiple distributed "
                       "gateway ports. NAT rule needs to specify "
@@ -4785,18 +4784,35 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
                             nbrec_nat_set_external_mac(nat, external_mac);
                             should_return = true;
                         } else {
-                            ctl_error(ctx, "%s, %s: a NAT with this "
-                                      "external_ip and logical_ip already "
-                                      "exists", new_external_ip,
-                                      new_logical_ip);
+                            if (dgw_port) {
+                                ctl_error(ctx, "%s, %s, %s: a NAT with this "
+                                          "external_ip, logical_ip and "
+                                          "gateway port already exists",
+                                          new_external_ip, new_logical_ip,
+                                          dgw_port->name);
+                            } else {
+                                ctl_error(ctx, "%s, %s: a NAT with this "
+                                          "external_ip and logical_ip"
+                                          "already exists", new_external_ip,
+                                          new_logical_ip);
+                            }
                             should_return = true;
                         }
                 } else {
-                    ctl_error(ctx, "a NAT with this type (%s) and %s (%s) "
-                              "already exists",
-                              nat_type,
-                              is_snat ? "logical_ip" : "external_ip",
-                              is_snat ? new_logical_ip : new_external_ip);
+                    if (dgw_port) {
+                        ctl_error(ctx, "a NAT with this type (%s), %s (%s) "
+                                  "and gateway_port (%s) already exists",
+                                  nat_type,
+                                  is_snat ? "logical_ip" : "external_ip",
+                                  is_snat ? new_logical_ip : new_external_ip,
+                                  dgw_port->name);
+                    } else {
+                        ctl_error(ctx, "a NAT with this type (%s) and %s (%s) "
+                                  "already exists",
+                                  nat_type,
+                                  is_snat ? "logical_ip" : "external_ip",
+                                  is_snat ? new_logical_ip : new_external_ip);
+                    }
                     should_return = true;
                 }
             }
@@ -4980,6 +4996,7 @@ nbctl_pre_lr_nat_list(struct ctl_context *ctx)
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_logical_ip);
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_external_mac);
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_logical_port);
+    ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_gateway_port);
 }
 
 static void
