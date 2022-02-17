@@ -4792,7 +4792,7 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
                                           dgw_port->name);
                             } else {
                                 ctl_error(ctx, "%s, %s: a NAT with this "
-                                          "external_ip and logical_ip"
+                                          "external_ip and logical_ip "
                                           "already exists", new_external_ip,
                                           new_logical_ip);
                             }
