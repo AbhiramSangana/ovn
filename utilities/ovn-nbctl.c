@@ -4976,8 +4976,10 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
     }
 
     if (must_exist) {
-        ctl_error(ctx, "no matching NAT with the type (%s) and %s (%s)",
-                  nat_type, is_snat ? "logical_ip" : "external_ip", nat_ip);
+        ctl_error(ctx, "no matching NAT with the type (%s), %s (%s) and "
+                  "gateway_port (%s)", nat_type,
+                  is_snat ? "logical_ip" : "external_ip", nat_ip,
+                  ctx->argv[4]);
     }
 
 cleanup:
@@ -7207,9 +7209,8 @@ static const struct ctl_command_syntax nbctl_commands[] = {
       nbctl_pre_lr_nat_add, nbctl_lr_nat_add,
       NULL, "--may-exist,--stateless,--portrange,--add-route,"
       "--gateway-port=", RW },
-    { "lr-nat-del", 1, 3, "ROUTER [TYPE [IP]]",
-      nbctl_pre_lr_nat_del, nbctl_lr_nat_del, NULL, "--if-exists,"
-      "--gateway-port=", RW },
+    { "lr-nat-del", 1, 4, "ROUTER [TYPE [IP [GATEWAY_PORT]]]",
+      nbctl_pre_lr_nat_del, nbctl_lr_nat_del, NULL, "--if-exists", RW },
     { "lr-nat-list", 1, 1, "ROUTER", nbctl_pre_lr_nat_list,
       nbctl_lr_nat_list, NULL, "", RO },
     { "lr-nat-update-ext-ip", 4, 4, "ROUTER TYPE IP ADDRESS_SET",
