@@ -6011,10 +6011,9 @@ check ovn-nbctl lrp-set-gateway-chassis DR-S3 gw3
 check ovn-nbctl --wait=sb sync
 
 # Configure SNAT
-check ovn-nbctl lr-nat-add DR snat  172.16.1.10    20.0.0.10
-check ovn-nbctl lr-nat-add DR snat  10.0.0.10      20.0.0.10
-check ovn-nbctl lr-nat-add DR snat  192.168.0.10   20.0.0.10
-check ovn-nbctl lr-nat-add DR snat  192.168.123.10 20.0.0.10
+check ovn-nbctl --gateway-port=DR-S1 lr-nat-add DR snat  172.16.1.10    20.0.0.10
+check ovn-nbctl --gateway-port=DR-S2 lr-nat-add DR snat  10.0.0.10      20.0.0.10
+check ovn-nbctl --gateway-port=DR-S3 lr-nat-add DR snat  192.168.0.10   20.0.0.10
 
 ovn-sbctl dump-flows DR > lrflows
 AT_CAPTURE_FILE([lrflows])
@@ -6065,10 +6064,9 @@ AT_CHECK([ovn-sbctl dump-flows DR | grep -e lr_in_unsnat -e lr_out_snat | grep c
 ])
 
 # Configure DNAT
-check ovn-nbctl lr-nat-add DR dnat  172.16.1.10    20.0.0.10
-check ovn-nbctl lr-nat-add DR dnat  10.0.0.10      20.0.0.10
-check ovn-nbctl lr-nat-add DR dnat  192.168.0.10   20.0.0.10
-check ovn-nbctl lr-nat-add DR dnat  192.168.123.10 20.0.0.10
+check ovn-nbctl --gateway-port=DR-S1 lr-nat-add DR dnat  172.16.1.10    20.0.0.10
+check ovn-nbctl --gateway-port=DR-S2 lr-nat-add DR dnat  10.0.0.10      20.0.0.10
+check ovn-nbctl --gateway-port=DR-S3 lr-nat-add DR dnat  192.168.0.10   20.0.0.10
 
 ovn-sbctl dump-flows DR > lrflows
 AT_CAPTURE_FILE([lrflows])
@@ -6093,19 +6091,15 @@ check_lr_in_dnat_flows
 check_lr_out_undnat_flows
 check_lr_in_arp_nat_flows
 
-check ovn-nbctl lr-nat-del DR dnat  172.16.1.10
-check ovn-nbctl lr-nat-del DR dnat  10.0.0.10
-check ovn-nbctl lr-nat-del DR dnat  192.168.0.10
-check ovn-nbctl lr-nat-del DR dnat  192.168.123.10
+check ovn-nbctl lr-nat-del DR dnat
 
 AT_CHECK([ovn-sbctl dump-flows DR | grep -e lr_in_dnat -e lr_out_undnat | grep ct_dnat | wc -l], [0], [0
 ])
 
 # Configure DNAT_AND_SNAT
-check ovn-nbctl lr-nat-add DR dnat_and_snat  172.16.1.10    20.0.0.10
-check ovn-nbctl lr-nat-add DR dnat_and_snat  10.0.0.10      20.0.0.10
-check ovn-nbctl lr-nat-add DR dnat_and_snat  192.168.0.10   20.0.0.10
-check ovn-nbctl lr-nat-add DR dnat_and_snat  192.168.123.10 20.0.0.10
+check ovn-nbctl --gateway-port=DR-S1 lr-nat-add DR dnat_and_snat  172.16.1.10    20.0.0.10
+check ovn-nbctl --gateway-port=DR-S2 lr-nat-add DR dnat_and_snat  10.0.0.10      20.0.0.10
+check ovn-nbctl --gateway-port=DR-S3 lr-nat-add DR dnat_and_snat  192.168.0.10   20.0.0.10
 
 ovn-sbctl dump-flows DR > lrflows
 AT_CAPTURE_FILE([lrflows])
