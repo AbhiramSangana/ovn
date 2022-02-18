@@ -2694,10 +2694,10 @@ join_logical_ports(struct northd_input *input_data,
  * by one or more IP addresses, and if the port is a distributed gateway
  * port, followed by 'is_chassis_resident("LPORT_NAME")', where the
  * LPORT_NAME is the name of the L3 redirect port or the name of the
- * logical_port specified in a NAT rule.  These strings include the
- * external IP addresses of NAT rules defined on that router which are in the
- * same network as the router port 'op', and all of the IP addresses used in
- * load balancer VIPs defined on that router.
+ * logical_port specified in a NAT rule. These strings include the
+ * external IP addresses of NAT rules defined on that router which have
+ * gateway_port not set or have gateway_port as the router port 'op', and all
+ * of the IP addresses used in load balancer VIPs defined on that router.
  *
  * The caller must free each of the n returned strings with free(),
  * and must free the returned array when it is no longer needed. */
@@ -2737,6 +2737,8 @@ get_nat_addresses(const struct ovn_port *op, size_t *n, bool routable_only)
             continue;
         }
 
+        /* Not including external IP of NAT rules whose gateway_port is
+         * not 'op'. */
         if (nat->gateway_port && nat->gateway_port != op->nbrp) {
             continue;
         }
