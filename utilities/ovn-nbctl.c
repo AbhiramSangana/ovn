@@ -5025,12 +5025,12 @@ nbctl_lr_nat_list(struct ctl_context *ctx)
     const struct smap_node **nodes = smap_sort(&lr_nats);
     if (nodes) {
         ds_put_format(&ctx->output,
-                "%-17.13s%-19.15s%-17.13s%-22.18s%-20.16s%-21.17s%s\n",
-                "TYPE", "EXTERNAL_IP", "EXTERNAL_PORT", "LOGICAL_IP",
-                "GATEWAY_PORT", "EXTERNAL_MAC", "LOGICAL_PORT");
+                "%-17.13s%-22.18s%-19.15s%-17.13s%-20.16s%-21.17s%s\n",
+                "TYPE", "GATEWAY_PORT", "EXTERNAL_IP", "EXTERNAL_PORT",
+                "LOGICAL_IP", "EXTERNAL_MAC", "LOGICAL_PORT");
         for (size_t i = 0; i < smap_count(&lr_nats); i++) {
             const struct smap_node *node = nodes[i];
-            ds_put_format(&ctx->output, "%-36.32s%s\n",
+            ds_put_format(&ctx->output, "%-58.54s%s\n",
                     node->key, node->value);
         }
         free(nodes);
