@@ -3449,9 +3449,10 @@ ovn_port_update_sbrec(struct northd_input *input_data,
                 }
 
                 if (op->peer->od->n_l3dgw_ports) {
-                        const struct ovn_port *l3dgw_port = (
-                            is_l3dgw_port(op->peer) ? op->peer
-                                                    : op->peer->od->l3dgw_ports[0]);
+                    const struct ovn_port *l3dgw_port = (
+                        is_l3dgw_port(op->peer)
+                        ? op->peer
+                        : op->peer->od->l3dgw_ports[0]);
                     ds_put_format(&garp_info, " is_chassis_resident(%s)",
                                   l3dgw_port->cr_port->json_key);
                 }

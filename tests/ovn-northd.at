@@ -859,7 +859,7 @@ ovn_start
 ovn-sbctl chassis-add gw1 geneve 127.0.0.1
 
 ovn-nbctl lr-add R1
-ovn-nbctl lrp-add R1 R1-S1 02:ac:10:01:00:01 172.16.1.1/24 3000::a/64
+ovn-nbctl lrp-add R1 R1-S1 02:ac:10:01:00:01 172.16.1.1/24
 
 ovn-nbctl ls-add S1
 ovn-nbctl lsp-add S1 S1-R1
@@ -900,13 +900,13 @@ ovn-nbctl lr-nat-del R1 dnat_and_snat  172.16.1.1
 
 echo
 echo "IPv6: stateful"
-ovn-nbctl --wait=sb lr-nat-add R1 dnat_and_snat 3000::c 1000::3
+ovn-nbctl --wait=sb lr-nat-add R1 dnat_and_snat fd01::1 fd11::2
 check_flow_match_sets 3 4 2 0 0 0 0
-ovn-nbctl lr-nat-del R1 dnat_and_snat 3000::c
+ovn-nbctl lr-nat-del R1 dnat_and_snat  fd01::1
 
 echo
 echo "IPv6: stateless"
-ovn-nbctl --wait=sb --stateless lr-nat-add R1 dnat_and_snat 3000::c 1000::3
+ovn-nbctl --wait=sb --stateless lr-nat-add R1 dnat_and_snat fd01::1 fd11::2
 check_flow_match_sets 2 0 0 0 0 2 2
 
 AT_CLEANUP
@@ -4293,16 +4293,16 @@ check ovn-nbctl lsp-set-type lrp1-attachment router
 check ovn-nbctl lsp-set-addresses lrp1-attachment 00:00:00:00:ff:02
 check ovn-nbctl lsp-set-options lrp1-attachment router-port=lrp1
 
-check ovn-nbctl lr-nat-add lr0 dnat 11.0.0.42 192.168.0.2
+check ovn-nbctl lr-nat-add lr0 dnat 42.42.42.42 192.168.0.2
 check ovn-nbctl --wait=sb sync
 
-AT_CHECK([ovn-trace --minimal 'inport == "sw1-port1" && eth.src == 50:54:00:00:00:03 && eth.dst == 00:00:00:00:ff:02 && ip4.dst == 11.0.0.42 && ip4.src == 11.0.0.2 && ip.ttl == 64' | grep "output(\"sw0-port1\")"], [0], [ignore])
+AT_CHECK([ovn-trace --minimal 'inport == "sw1-port1" && eth.src == 50:54:00:00:00:03 && eth.dst == 00:00:00:00:ff:02 && ip4.dst == 42.42.42.42 && ip4.src == 11.0.0.2 && ip.ttl == 64' | grep "output(\"sw0-port1\")"], [0], [ignore])
 
 dnl If we remove the DNAT entry we will be unable to trace to the DNAT address
-check ovn-nbctl lr-nat-del lr0 dnat 11.0.0.42
+check ovn-nbctl lr-nat-del lr0 dnat 42.42.42.42
 check ovn-nbctl --wait=sb sync
 
-AT_CHECK([ovn-trace --minimal 'inport == "sw1-port1" && eth.src == 50:54:00:00:00:03 && eth.dst == 00:00:00:00:ff:02 && ip4.dst == 11.0.0.42 && ip4.src == 11.0.0.2 && ip.ttl == 64' | grep "output(\"sw0-port1\")"], [1], [ignore])
+AT_CHECK([ovn-trace --minimal 'inport == "sw1-port1" && eth.src == 50:54:00:00:00:03 && eth.dst == 00:00:00:00:ff:02 && ip4.dst == 42.42.42.42 && ip4.src == 11.0.0.2 && ip.ttl == 64' | grep "output(\"sw0-port1\")"], [1], [ignore])
 
 AT_CLEANUP
 ])
@@ -4332,16 +4332,16 @@ check ovn-nbctl lsp-set-type lrp1-attachment router
 check ovn-nbctl lsp-set-addresses lrp1-attachment 00:00:00:00:ff:02
 check ovn-nbctl lsp-set-options lrp1-attachment router-port=lrp1
 
-check ovn-nbctl lr-nat-add lr0 dnat fd11::42 fd68::2
+check ovn-nbctl lr-nat-add lr0 dnat fd42::42 fd68::2
 check ovn-nbctl --wait=sb sync
 
-AT_CHECK([ovn-trace --minimal 'inport == "sw1-port1" && eth.src == 50:54:00:00:00:03 && eth.dst == 00:00:00:00:ff:02 && ip6.dst == fd11::42 && ip6.src == fd11::2 && ip.ttl == 64' | grep "output(\"sw0-port1\")"], [0], [ignore])
+AT_CHECK([ovn-trace --minimal 'inport == "sw1-port1" && eth.src == 50:54:00:00:00:03 && eth.dst == 00:00:00:00:ff:02 && ip6.dst == fd42::42 && ip6.src == fd11::2 && ip.ttl == 64' | grep "output(\"sw0-port1\")"], [0], [ignore])
 
 dnl If we remove the DNAT entry we will be unable to trace to the DNAT address
-check ovn-nbctl lr-nat-del lr0 dnat fd11::42
+check ovn-nbctl lr-nat-del lr0 dnat fd42::42
 check ovn-nbctl --wait=sb sync
 
-AT_CHECK([ovn-trace --minimal 'inport == "sw1-port1" && eth.src == 50:54:00:00:00:03 && eth.dst == 00:00:00:00:ff:02 && ip6.dst == fd11::42 && ip6.src == fd11::2 && ip.ttl == 64' | grep "output(\"sw0-port1\")"], [1], [ignore])
+AT_CHECK([ovn-trace --minimal 'inport == "sw1-port1" && eth.src == 50:54:00:00:00:03 && eth.dst == 00:00:00:00:ff:02 && ip6.dst == fd42::42 && ip6.src == fd11::2 && ip.ttl == 64' | grep "output(\"sw0-port1\")"], [1], [ignore])
 
 AT_CLEANUP
 ])

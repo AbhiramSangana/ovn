@@ -5001,24 +5001,23 @@ nbctl_lr_nat_list(struct ctl_context *ctx)
     struct smap lr_nats = SMAP_INITIALIZER(&lr_nats);
     for (size_t i = 0; i < lr->n_nat; i++) {
         const struct nbrec_nat *nat = lr->nat[i];
-        char *key = xasprintf("%-17.13s%s", nat->type, nat->external_ip);
+        char *key = xasprintf("%-17.13s%-22.18s%s",
+                              nat->type,
+                              nat->gateway_port
+                              ? nat->gateway_port->name
+                              : "",
+                              nat->external_ip);
         if (nat->external_mac && nat->logical_port) {
             smap_add_format(&lr_nats, key,
-                            "%-17.13s%-22.18s%-20.16s%-21.17s%s",
+                            "%-17.13s%-20.16s%-21.17s%s",
                             nat->external_port_range,
                             nat->logical_ip,
-                            nat->gateway_port
-                            ? nat->gateway_port->name
-                            : "",
                             nat->external_mac,
                             nat->logical_port);
         } else {
-            smap_add_format(&lr_nats, key, "%-17.13s%-22.18s%s",
+            smap_add_format(&lr_nats, key, "%-17.13s%s",
                             nat->external_port_range,
-                            nat->logical_ip,
-                            nat->gateway_port
-                            ? nat->gateway_port->name
-                            : "");
+                            nat->logical_ip);
         }
         free(key);
     }

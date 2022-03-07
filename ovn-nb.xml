@@ -3349,8 +3349,9 @@
         NAT rule of <ref column="type"/> <code>snat</code>,
         <ref column="logical_ip"/> <code>10.1.1.0/24</code> and
         <ref column="external_ip"/> <code>50.1.1.20/24</code>, the rule needs
-        to be selectively applied on matching packets through distributed
-        gateway port with <ref column="networks" table="Logical_Router_Port"/>
+        to be selectively applied on matching packets entering/leaving
+        through the distributed gateway port with
+        <ref column="networks" table="Logical_Router_Port"/>
         <code>50.0.0.10/24</code>.
       </p>
     </column>
