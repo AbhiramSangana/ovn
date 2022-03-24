@@ -382,7 +382,7 @@ NAT commands:\n\
   lr-nat-add ROUTER TYPE EXTERNAL_IP LOGICAL_IP [LOGICAL_PORT EXTERNAL_MAC]\n\
                             [EXTERNAL_PORT_RANGE]\n\
                             add a NAT to ROUTER\n\
-  lr-nat-del ROUTER [TYPE [IP [GATEWAY_PORT]]]\n\
+  lr-nat-del ROUTER [TYPE [IP] [GATEWAY_PORT]]\n\
                             remove NATs from ROUTER\n\
   lr-nat-list ROUTER        print NATs for ROUTER\n\
 \n\
@@ -4918,13 +4918,29 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
     }
 
     char *nat_ip = normalize_prefix_str(ctx->argv[3]);
-    if (!nat_ip) {
-        ctl_error(ctx, "%s: Invalid IP address or CIDR", ctx->argv[3]);
-        return;
-    }
-
     int is_snat = !strcmp("snat", nat_type);
+    const struct nbrec_logical_router_port *dgw_port = NULL;
+
     if (ctx->argc == 4) {
+        if (!nat_ip) {
+            /* GATEWAY_PORT is assumed to be passed. */
+            error = lrp_by_name_or_uuid(ctx, ctx->argv[3], true, &dgw_port);
+            if (error) {
+                ctx->error = error;
+                return;
+            }
+
+            /* Deletes all NATs matching the type and gateway_port
+             * specified. */
+            for (size_t i = 0; i < lr->n_nat; i++) {
+                if (!strcmp(nat_type, lr->nat[i]->type) &&
+                    lr->nat[i]->gateway_port == dgw_port) {
+                    nbrec_logical_router_update_nat_delvalue(lr, lr->nat[i]);
+                }
+            }
+            return;
+        }
+
         /* Remove NAT rules matching the type and IP (based on type). */
         for (size_t i = 0; i < lr->n_nat; i++) {
             struct nbrec_nat *nat = lr->nat[i];
@@ -4942,7 +4958,11 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
         goto cleanup;
     }
 
-    const struct nbrec_logical_router_port *dgw_port = NULL;
+    if (!nat_ip) {
+        ctl_error(ctx, "%s: Invalid IP address or CIDR", ctx->argv[3]);
+        return;
+    }
+
     error = lrp_by_name_or_uuid(ctx, ctx->argv[4], true, &dgw_port);
     if (error) {
         ctx->error = error;
@@ -7214,7 +7234,7 @@ static const struct ctl_command_syntax nbctl_commands[] = {
       nbctl_pre_lr_nat_add, nbctl_lr_nat_add,
       NULL, "--may-exist,--stateless,--portrange,--add-route,"
       "--gateway-port=", RW },
-    { "lr-nat-del", 1, 4, "ROUTER [TYPE [IP [GATEWAY_PORT]]]",
+    { "lr-nat-del", 1, 4, "ROUTER [TYPE [IP] [GATEWAY_PORT]]",
       nbctl_pre_lr_nat_del, nbctl_lr_nat_del, NULL, "--if-exists", RW },
     { "lr-nat-list", 1, 1, "ROUTER", nbctl_pre_lr_nat_list,
       nbctl_lr_nat_list, NULL, "", RO },
