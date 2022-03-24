@@ -4941,7 +4941,7 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
         }
         goto cleanup;
     }
-    
+
     const struct nbrec_logical_router_port *dgw_port = NULL;
     error = lrp_by_name_or_uuid(ctx, ctx->argv[4], true, &dgw_port);
     if (error) {
@@ -4965,8 +4965,9 @@ nbctl_lr_nat_del(struct ctl_context *ctx)
             should_return = true;
         }
         free(old_ip);
-        if (should_return)
+        if (should_return) {
             goto cleanup;
+        }
     }
 
     if (must_exist) {
