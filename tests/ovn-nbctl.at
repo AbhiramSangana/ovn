@@ -785,14 +785,36 @@ AT_CHECK([ovn-nbctl lr-nat-list lr0], [0], [dnl
 TYPE             GATEWAY_PORT          EXTERNAL_IP        EXTERNAL_PORT    LOGICAL_IP          EXTERNAL_MAC         LOGICAL_PORT
 snat             lrp00                 172.64.0.10                         20.0.0.10
 ])
-AT_CHECK([ovn-nbctl lr-nat-del lr0 dnat 30.0.0.10 lrp00], [1], [],
+
+AT_CHECK([ovn-nbctl --gateway-port=lrp00 lr-nat-add lr0 snat 30.0.0.10 20.0.0.20])
+AT_CHECK([ovn-nbctl --gateway-port=lrp01 lr-nat-add lr0 snat 30.0.0.10 20.0.0.20])
+AT_CHECK([ovn-nbctl lr-nat-list lr0], [0], [dnl
+TYPE             GATEWAY_PORT          EXTERNAL_IP        EXTERNAL_PORT    LOGICAL_IP          EXTERNAL_MAC         LOGICAL_PORT
+snat             lrp00                 172.64.0.10                         20.0.0.10
+snat             lrp00                 30.0.0.10                           20.0.0.20
+snat             lrp01                 30.0.0.10                           20.0.0.20
+])
+AT_CHECK([ovn-nbctl lr-nat-del lr0 dnat lrp10], [1], [],
 [ovn-nbctl: no matching NAT with the type (dnat), external_ip (30.0.0.10) and gateway_port (lrp00)
 ])
+AT_CHECK([ovn-nbctl lr-nat-del lr0 dnat lrp00])
+AT_CHECK([ovn-nbctl lr-nat-list lr0], [0], [dnl
+TYPE             GATEWAY_PORT          EXTERNAL_IP        EXTERNAL_PORT    LOGICAL_IP          EXTERNAL_MAC         LOGICAL_PORT
+snat             lrp00                 172.64.0.10                         20.0.0.10
+snat             lrp00                 30.0.0.10                           20.0.0.20
+snat             lrp01                 30.0.0.10                           20.0.0.20
+])
+AT_CHECK([ovn-nbctl lr-nat-del lr0 dnat lrp00])
+AT_CHECK([ovn-nbctl lr-nat-list lr0], [0], [dnl
+TYPE             GATEWAY_PORT          EXTERNAL_IP        EXTERNAL_PORT    LOGICAL_IP          EXTERNAL_MAC         LOGICAL_PORT
+snat             lrp01                 30.0.0.10                           20.0.0.20
+])
+
 AT_CHECK([ovn-nbctl lr-nat-del lr0 snat 20.0.0.10 lrp01], [1], [],
 [ovn-nbctl: no matching NAT with the type (snat), logical_ip (20.0.0.10) and gateway_port (lrp01)
 ])
 AT_CHECK([ovn-nbctl --if-exists lr-nat-del lr0 snat 20.0.0.10 lrp01])
-AT_CHECK([ovn-nbctl lr-nat-del lr0 snat 20.0.0.10 lrp00])
+AT_CHECK([ovn-nbctl lr-nat-del lr0 snat 20.0.0.20 lrp01])
 ])
 
 dnl ---------------------------------------------------------------------
