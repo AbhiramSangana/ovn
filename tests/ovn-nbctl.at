@@ -794,8 +794,8 @@ snat             lrp00                 172.64.0.10                         20.0.
 snat             lrp00                 30.0.0.10                           20.0.0.20
 snat             lrp01                 30.0.0.10                           20.0.0.20
 ])
-AT_CHECK([ovn-nbctl lr-nat-del lr0 dnat lrp10], [1], [],
-[ovn-nbctl: no matching NAT with the type (dnat), external_ip (30.0.0.10) and gateway_port (lrp00)
+AT_CHECK([ovn-nbctl lr-nat-del lr0 dnat lrp11], [1], [],
+[ovn-nbctl: lrp11: port name not found
 ])
 AT_CHECK([ovn-nbctl lr-nat-del lr0 dnat lrp00])
 AT_CHECK([ovn-nbctl lr-nat-list lr0], [0], [dnl
@@ -804,12 +804,15 @@ snat             lrp00                 172.64.0.10                         20.0.
 snat             lrp00                 30.0.0.10                           20.0.0.20
 snat             lrp01                 30.0.0.10                           20.0.0.20
 ])
-AT_CHECK([ovn-nbctl lr-nat-del lr0 dnat lrp00])
+AT_CHECK([ovn-nbctl lr-nat-del lr0 snat lrp00])
 AT_CHECK([ovn-nbctl lr-nat-list lr0], [0], [dnl
 TYPE             GATEWAY_PORT          EXTERNAL_IP        EXTERNAL_PORT    LOGICAL_IP          EXTERNAL_MAC         LOGICAL_PORT
 snat             lrp01                 30.0.0.10                           20.0.0.20
 ])
 
+AT_CHECK([ovn-nbctl lr-nat-del lr0 snat 20.0.0 lrp01], [1], [],
+[ovn-nbctl: 20.0.0: Invalid IP address or CIDR
+])
 AT_CHECK([ovn-nbctl lr-nat-del lr0 snat 20.0.0.10 lrp01], [1], [],
 [ovn-nbctl: no matching NAT with the type (snat), logical_ip (20.0.0.10) and gateway_port (lrp01)
 ])
