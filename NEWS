@@ -2,7 +2,7 @@ Post v22.03.0
 -------------
   - Support IGMP and MLD snooping on transit logical switches that connect
     different OVN Interconnection availability zones.
-  - Support NAT with multiple distributed gateway ports on a logical router.
+  - Support NAT for logical routers with multiple distributed gateway ports.
 
 OVN v22.03.0 - XX XXX XXXX
 --------------------------

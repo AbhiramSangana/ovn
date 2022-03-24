@@ -1219,26 +1219,30 @@
         </p>
       </dd>
 
-      <dt>[<code>--if-exists</code>] <code>lr-nat-del</code> <var>router</var> [<var>type</var> [<var>ip</var> [<var>gateway_port</var>]]]</dt>
+      <dt>[<code>--if-exists</code>] <code>lr-nat-del</code> <var>router</var> [<var>type</var> [<var>ip</var>] [<var>gateway_port</var>]]</dt>
       <dd>
         <p>
           Deletes NATs from <var>router</var>.  If only <var>router</var>
           is supplied, all the NATs from the logical router are
           deleted.  If <var>type</var> is also specified, then all the
           NATs that match the <var>type</var> will be deleted from the logical
-          router. If <var>ip</var> is also specified, then all the
-          NATs that match the <var>type</var> and <var>ip</var> will be
-          deleted from the logical router. If all the fields are given, then
-          a single NAT rule that matches all the fields will be deleted.
-          When <var>type</var> is <code>snat</code>, the <var>ip</var> should
-          be logical_ip. When <var>type</var> is <code>dnat</code> or
-          <code>dnat_and_snat</code>, the <var>ip</var> shoud be external_ip.
+          router. If <var>ip</var> is also specified without specifying
+          <var>gateway_port</var>, then all the NATs that match the
+          <var>type</var> and <var>ip</var> will be deleted from the logical
+          router. If <var>gateway_port</var> is specified without specifying
+          <var>ip</var>, then all the NATs that match the <var>type</var> and
+          <var>gateway_port</var> will be deleted from the logical router.
+          If all the fields are given, then a single NAT rule that matches all
+          the fields will be deleted. When <var>type</var> is
+          <code>snat</code>, the <var>ip</var> should be logical_ip. When
+          <var>type</var> is <code>dnat</code> or <code>dnat_and_snat</code>,
+          the <var>ip</var> shoud be external_ip.
         </p>
 
         <p>
-          It is an error if <var>gateway_port</var> is specified and there
-          is no matching NAT entry, unless <code>--if-exists</code> is
-          specified.
+          It is an error if both <var>ip</var> and <var>gateway_port</var> are
+          specified and there is no matching NAT entry, unless
+          <code>--if-exists</code> is specified.
         </p>
       </dd>
 
