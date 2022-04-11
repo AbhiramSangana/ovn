@@ -4755,20 +4755,6 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
                       dgw_port_name);
             goto cleanup;
         }
-    } else {
-        size_t num_l3dgw_ports = 0;
-        for (size_t i = 0; i < lr->n_ports; i++) {
-            const struct nbrec_logical_router_port *lrp = lr->ports[i];
-            if (lrp->ha_chassis_group || lrp->n_gateway_chassis) {
-                num_l3dgw_ports++;
-            }
-        }
-        if (num_l3dgw_ports > 1) {
-            ctl_error(ctx, "logical router: %s has multiple distributed "
-                      "gateway ports. NAT rule needs to specify "
-                      "gateway_port.", ctx->argv[1]);
-            goto cleanup;
-        }
     }
 
     for (size_t i = 0; i < lr->n_nat; i++) {
