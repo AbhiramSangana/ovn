@@ -2760,7 +2760,7 @@ get_nat_addresses(const struct ovn_port *op, size_t *n, bool routable_only,
 
         /* Not including external IP of NAT rules whose gateway_port is
          * not 'op'. */
-        if (od->n_l3dgw_ports > 1 &&
+        if (op->od->n_l3dgw_ports > 1 &&
             ((!nat->gateway_port && !find_lrp_member_ip(op, nat->external_ip))
              || (nat->gateway_port && nat->gateway_port != op->nbrp))) {
             continue;
@@ -10451,7 +10451,7 @@ build_lrouter_port_nat_arp_nd_flow(struct ovn_port *op,
 
     /* ARP/ND should be sent from distributed gateway port relevant to
      * the NAT rule. */
-    if (od->n_l3dgw_ports > 1 &&
+    if (op->od->n_l3dgw_ports > 1 &&
         ((!nat->gateway_port && !find_lrp_member_ip(op, nat->external_ip)) ||
          (nat->gateway_port && nat->gateway_port != op->nbrp))) {
         return;
