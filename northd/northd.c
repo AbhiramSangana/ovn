@@ -2715,9 +2715,9 @@ join_logical_ports(struct northd_input *input_data,
  * port, followed by 'is_chassis_resident("LPORT_NAME")', where the
  * LPORT_NAME is the name of the L3 redirect port or the name of the
  * logical_port specified in a NAT rule. These strings include the
- * external IP addresses of NAT rules defined on that router which have
- * gateway_port not set or have gateway_port as the router port 'op', and all
- * of the IP addresses used in load balancer VIPs defined on that router.
+ * external IP addresses of NAT rules defined on that router whose
+ * gateway_port is router port 'op', and all of the IP addresses used in
+ * load balancer VIPs defined on that router.
  *
  * The caller must free each of the n returned strings with free(),
  * and must free the returned array when it is no longer needed. */
@@ -2760,7 +2760,9 @@ get_nat_addresses(const struct ovn_port *op, size_t *n, bool routable_only,
 
         /* Not including external IP of NAT rules whose gateway_port is
          * not 'op'. */
-        if (nat->gateway_port && nat->gateway_port != op->nbrp) {
+        if (od->n_l3dgw_ports > 1 &&
+            ((!nat->gateway_port && !find_lrp_member_ip(op, nat->external_ip))
+             || (nat->gateway_port && nat->gateway_port != op->nbrp))) {
             continue;
         }
 
@@ -3416,8 +3418,12 @@ ovn_port_update_sbrec(struct northd_input *input_data,
                     struct ds nat_addr = DS_EMPTY_INITIALIZER;
                     ds_put_format(&nat_addr, "%s", nat_addresses);
                     if (l3dgw_ports) {
+                        const struct ovn_port *l3dgw_port = (
+                            is_l3dgw_port(op->peer)
+                            ? op->peer
+                            : op->peer->od->l3dgw_ports[0]);
                         ds_put_format(&nat_addr, " is_chassis_resident(%s)",
-                            op->peer->od->l3dgw_ports[0]->cr_port->json_key);
+                            l3dgw_port->cr_port->json_key);
                     }
                     nats[0] = xstrdup(ds_cstr(&nat_addr));
                     ds_destroy(&nat_addr);
@@ -10443,9 +10449,11 @@ build_lrouter_port_nat_arp_nd_flow(struct ovn_port *op,
     const struct nbrec_nat *nat = nat_entry->nb;
     struct ds match = DS_EMPTY_INITIALIZER;
 
-    /* ARP/ND should be sent from distributed gateway port specified in
+    /* ARP/ND should be sent from distributed gateway port relevant to
      * the NAT rule. */
-    if (nat->gateway_port && nat->gateway_port != op->nbrp) {
+    if (od->n_l3dgw_ports > 1 &&
+        ((!nat->gateway_port && !find_lrp_member_ip(op, nat->external_ip)) ||
+         (nat->gateway_port && nat->gateway_port != op->nbrp))) {
         return;
     }
 
@@ -13222,14 +13230,24 @@ lrouter_check_nat_entry(struct ovn_datapath *od, const struct nbrec_nat *nat,
     /* Validate gateway_port of NAT rule. */
     *nat_l3dgw_port = NULL;
     if (nat->gateway_port == NULL) {
-        if (od->n_l3dgw_ports > 1) {
-            static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 1);
-            VLOG_WARN_RL(&rl, "NAT configured on logical router: %s with"
-                         "multiple distributed gateway ports needs to specify"
-                         "valid gateway_port.", od->nbr->name);
-            return -EINVAL;
-        } else if (od->n_l3dgw_ports) {
+        if (od->n_l3dgw_ports == 1) {
             *nat_l3dgw_port = od->l3dgw_ports[0];
+        } else if (od->n_l3dgw_ports > 1) {
+            /* Find the DGP reachable for the NAT external IP. */
+            for (size_t i = 0; i < od->n_l3dgw_ports; i++) {
+               if (find_lrp_member_ip(od->l3dgw_ports[i], nat->external_ip)) {
+                   *nat_l3dgw_port = od->l3dgw_ports[i];
+                   break;
+               }
+            }
+            if (*nat_l3dgw_port == NULL) {
+                static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 1);
+                VLOG_WARN_RL(&rl, "Unable to determine gateway_port for NAT "
+                             "with external_ip: %s configured on logical "
+                             "router: %s with multiple distributed gateway "
+                             "ports", nat->external_ip, od->nbr->name);
+                return -EINVAL;
+            }
         }
     } else {
         *nat_l3dgw_port = ovn_port_find(ports, nat->gateway_port->name);
