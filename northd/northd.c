@@ -2711,7 +2711,7 @@ join_logical_ports(struct northd_input *input_data,
 }
 
 static const char *find_lrp_member_ip(const struct ovn_port *op,
-                                      const char *ip_s)
+                                      const char *ip_s);
 
 /* Returns an array of strings, each consisting of a MAC address followed
  * by one or more IP addresses, and if the port is a distributed gateway
