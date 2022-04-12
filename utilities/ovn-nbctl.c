@@ -4603,7 +4603,7 @@ ip_in_lrp_networks(const struct nbrec_logical_router_port *lrp,
         }
 
         for (int i = 0; i < lrp_networks.n_ipv6_addrs; i++) {
-            const struct ipv6_netaddr *na = &op->lrp_networks.ipv6_addrs[i];
+            const struct ipv6_netaddr *na = lrp_networks.ipv6_addrs[i];
             struct in6_addr xor_addr = ipv6_addr_bitxor(&na->network, &ip6);
             struct in6_addr and_addr = ipv6_addr_bitand(&xor_addr, &na->mask);
 
