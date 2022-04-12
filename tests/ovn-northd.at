@@ -6532,7 +6532,7 @@ check ovn-nbctl lrp-set-gateway-chassis DR-S3 gw3
 # Configure SNAT with and without setting "gateway_port" column
 check ovn-nbctl                      lr-nat-add DR snat  172.16.1.10    20.0.0.10
 check ovn-nbctl --gateway-port=DR-S2 lr-nat-add DR snat  10.0.0.10      20.0.0.10
-check ovn-nbctl                      lr-nat-add DR snat  192.168.1.10   20.0.0.10
+check ovn-nbctl                      lr-nat-add DR snat  192.168.0.10   20.0.0.10
 
 check ovn-nbctl --wait=sb sync
 
