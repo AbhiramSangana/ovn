@@ -4575,7 +4575,6 @@ ip_in_lrp_networks(const struct nbrec_logical_router_port *lrp,
     struct lport_addresses lrp_networks;
     extract_lrp_networks(lrp, &lrp_networks);
 
-    bool ip_in_net = false;
     bool is_ipv4 = strchr(ip_s, '.') ? true : false;
 
     if (is_ipv4) {
@@ -4636,6 +4635,8 @@ nbctl_pre_lr_nat_add(struct ctl_context *ctx)
     ovsdb_idl_add_column(ctx->idl, &nbrec_nat_col_options);
 
     ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_port_col_name);
+    ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_port_col_mac);
+    ovsdb_idl_add_column(ctx->idl, &nbrec_logical_router_port_col_networks);
     ovsdb_idl_add_column(ctx->idl,
                          &nbrec_logical_router_port_col_gateway_chassis);
     ovsdb_idl_add_column(ctx->idl,
