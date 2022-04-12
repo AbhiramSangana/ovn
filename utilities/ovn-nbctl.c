@@ -4569,6 +4569,55 @@ done:
     return ret;
 }
 
+static bool
+ip_in_lrp_networks(const struct nbrec_logical_router_port *lrp,
+                   const char *ip_s) {
+    struct lport_addresses lrp_networks;
+    extract_lrp_networks(lrp, &lrp_networks);
+
+    bool ip_in_net = false;
+    bool is_ipv4 = strchr(ip_s, '.') ? true : false;
+
+    if (is_ipv4) {
+        ovs_be32 ip;
+
+        if (!ip_parse(ip_s, &ip)) {
+            destroy_lport_addresses(&lrp_networks);
+            return false;
+        }
+
+        for (int i = 0; i < lrp_networks.n_ipv4_addrs; i++) {
+            const struct ipv4_netaddr *na = &op->lrp_networks.ipv4_addrs[i];
+
+            if (!((na->network ^ ip) & na->mask)) {
+                destroy_lport_addresses(&lrp_networks);
+                return true;
+            }
+        }
+    } else {
+        struct in6_addr ip6;
+
+        if (!ipv6_parse(ip_s, &ip6)) {
+            destroy_lport_addresses(&lrp_networks);
+            return false;
+        }
+
+        for (int i = 0; i < lrp_networks.n_ipv6_addrs; i++) {
+            const struct ipv6_netaddr *na = &op->lrp_networks.ipv6_addrs[i];
+            struct in6_addr xor_addr = ipv6_addr_bitxor(&na->network, &ip6);
+            struct in6_addr and_addr = ipv6_addr_bitand(&xor_addr, &na->mask);
+
+            if (ipv6_is_zero(&and_addr)) {
+                destroy_lport_addresses(&lrp_networks);
+                return true;
+            }
+        }
+    }
+
+    destroy_lport_addresses(&lrp_networks);
+    return false;
+}
+
 static void
 nbctl_pre_lr_nat_add(struct ctl_context *ctx)
 {
@@ -4729,6 +4778,8 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
     const char *dgw_port_name = shash_find_data(&ctx->options,
                                                 "--gateway-port");
     const struct nbrec_logical_router_port *dgw_port = NULL;
+    size_t num_l3dgw_ports = 0;
+
     if (dgw_port_name) {
         error = lrp_by_name_or_uuid(ctx, dgw_port_name,
                                     true, &dgw_port);
@@ -4737,14 +4788,17 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
             goto cleanup;
         }
 
-        bool nat_lr_port = false;
+        bool is_lr_port = false;
         for (size_t i = 0; i < lr->n_ports; i++) {
             const struct nbrec_logical_router_port *lrp = lr->ports[i];
+            if (lrp->ha_chassis_group || lrp->n_gateway_chassis) {
+                num_l3dgw_ports++;
+            }
             if (lrp == dgw_port) {
-                nat_lr_port = true;
+                is_lr_port = true;
             }
         }
-        if (!nat_lr_port) {
+        if (!is_lr_port) {
             ctl_error(ctx, "%s is not a router port of logical router: %s.",
                       dgw_port_name, ctx->argv[1]);
             goto cleanup;
@@ -4753,6 +4807,22 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
         if (!dgw_port->ha_chassis_group && !dgw_port->n_gateway_chassis) {
             ctl_error(ctx, "%s is not a distributed gateway router port.",
                       dgw_port_name);
+            goto cleanup;
+        }
+    } else {
+        for (size_t i = 0; i < lr->n_ports; i++) {
+            const struct nbrec_logical_router_port *lrp = lr->ports[i];
+            if (lrp->ha_chassis_group || lrp->n_gateway_chassis) {
+                num_l3dgw_ports++;
+                if (ip_in_lrp_networks(lrp, nat->external_ip)) {
+                    dgw_port = lrp;
+                }
+            }
+        }
+        if (num_l3dgw_ports > 1 && !dgw_port) {
+            ctl_error(ctx, "logical router: %s has multiple distributed "
+                      "gateway ports and gateway_port can not be determined "
+                      "from external IP of NAT rule.", ctx->argv[1]);
             goto cleanup;
         }
     }
@@ -4773,8 +4843,11 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
             continue;
         }
 
-        if (!strcmp(nat_type, nat->type) &&
-            dgw_port == nat->gateway_port) {
+        if (!strcmp(nat_type, nat->type)
+            && (num_l3dgw_ports <= 1
+                || (nat->gateway_port && nat->gateway_port == dgw_port)
+                || (!nat->gateway_port
+                    && ip_in_lrp_networks(dgw_port, old_external_ip)))) {
             if (!strcmp(is_snat ? new_logical_ip : new_external_ip,
                         is_snat ? old_logical_ip : old_external_ip)) {
                 if (!strcmp(is_snat ? new_external_ip : new_logical_ip,
@@ -4786,20 +4859,18 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
                             nbrec_nat_set_external_mac(nat, external_mac);
                             should_return = true;
                         } else {
-                            ctl_error(ctx, "%s, %s, %s: a NAT with this "
-                                      "external_ip, logical_ip and "
-                                      "gateway_port already exists",
-                                      new_external_ip, new_logical_ip,
-                                      dgw_port ? dgw_port->name : "");
+                            ctl_error(ctx, "%s, %s: a NAT with this "
+                                      "external_ip and logical_ip already "
+                                      "exists", new_external_ip,
+                                      new_logical_ip);
                             should_return = true;
                         }
                 } else {
                     ctl_error(ctx, "a NAT with this type (%s), %s (%s) "
-                              "and gateway_port (%s) already exists",
+                              "already exists",
                               nat_type,
                               is_snat ? "logical_ip" : "external_ip",
-                              is_snat ? new_logical_ip : new_external_ip,
-                              dgw_port ? dgw_port->name : "");
+                              is_snat ? new_logical_ip : new_external_ip);
                     should_return = true;
                 }
             }
@@ -4844,7 +4915,7 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
         smap_add(&nat_options, "add_route", "true");
     }
 
-    if (dgw_port) {
+    if (dgw_port_name) {
         nbrec_nat_update_gateway_port_addvalue(nat, dgw_port);
     }
     nbrec_nat_set_options(nat, &nat_options);
