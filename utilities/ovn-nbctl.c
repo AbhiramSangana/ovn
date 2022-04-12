@@ -4587,7 +4587,7 @@ ip_in_lrp_networks(const struct nbrec_logical_router_port *lrp,
         }
 
         for (int i = 0; i < lrp_networks.n_ipv4_addrs; i++) {
-            const struct ipv4_netaddr *na = &op->lrp_networks.ipv4_addrs[i];
+            const struct ipv4_netaddr *na = &lrp_networks.ipv4_addrs[i];
 
             if (!((na->network ^ ip) & na->mask)) {
                 destroy_lport_addresses(&lrp_networks);
@@ -4814,7 +4814,7 @@ nbctl_lr_nat_add(struct ctl_context *ctx)
             const struct nbrec_logical_router_port *lrp = lr->ports[i];
             if (lrp->ha_chassis_group || lrp->n_gateway_chassis) {
                 num_l3dgw_ports++;
-                if (ip_in_lrp_networks(lrp, nat->external_ip)) {
+                if (ip_in_lrp_networks(lrp, new_external_ip)) {
                     dgw_port = lrp;
                 }
             }
