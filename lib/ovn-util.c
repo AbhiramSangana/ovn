@@ -375,7 +375,7 @@ destroy_lport_addresses(struct lport_addresses *laddrs)
  *
  * The caller must not free the returned string. */
 const char *
-find_lport_address(struct lport_addresses *laddrs, const char *ip_s)
+find_lport_address(const struct lport_addresses *laddrs, const char *ip_s)
 {
     bool is_ipv4 = strchr(ip_s, '.') ? true : false;
 
