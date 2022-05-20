@@ -736,20 +736,6 @@ snat_ip_add(struct ovn_datapath *od, const char *ip, struct ovn_nat *nat_entry)
     }
 }
 
-/* Returns true if the given router port 'op' (assumed to be a distributed
- * gateway port) is the relevant DGP where the NAT rule of the router needs to
- * be applied. */
-static bool
-is_nat_gateway_port(const struct nbrec_nat *nat, const struct ovn_port *op)
-{
-    if (op->od->n_l3dgw_ports > 1
-        && ((!nat->gateway_port && !find_lrp_member_ip(op, nat->external_ip))
-            || (nat->gateway_port && nat->gateway_port != op->nbrp))) {
-        return false;
-    }
-    return true;
-}
-
 static void
 init_nat_entries(struct ovn_datapath *od)
 {
@@ -1979,6 +1965,23 @@ ipam_add_port_addresses(struct ovn_datapath *od, struct ovn_port *op)
     }
 }
 
+static const char *find_lrp_member_ip(const struct ovn_port *op,
+                                      const char *ip_s);
+
+/* Returns true if the given router port 'op' (assumed to be a distributed
+ * gateway port) is the relevant DGP where the NAT rule of the router needs to
+ * be applied. */
+static bool
+is_nat_gateway_port(const struct nbrec_nat *nat, const struct ovn_port *op)
+{
+    if (op->od->n_l3dgw_ports > 1
+        && ((!nat->gateway_port && !find_lrp_member_ip(op, nat->external_ip))
+            || (nat->gateway_port && nat->gateway_port != op->nbrp))) {
+        return false;
+    }
+    return true;
+}
+
 enum dynamic_update_type {
     NONE,    /* No change to the address */
     REMOVE,  /* Address is no longer dynamic */
@@ -2810,9 +2813,6 @@ join_logical_ports(struct northd_input *input_data,
         ipam_add_port_addresses(op->od, op);
     }
 }
-
-static const char *find_lrp_member_ip(const struct ovn_port *op,
-                                      const char *ip_s);
 
 /* Returns an array of strings, each consisting of a MAC address followed
  * by one or more IP addresses, and if the port is a distributed gateway
