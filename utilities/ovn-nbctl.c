@@ -4629,46 +4629,9 @@ ip_in_lrp_networks(const struct nbrec_logical_router_port *lrp,
     struct lport_addresses lrp_networks;
     extract_lrp_networks(lrp, &lrp_networks);
 
-    bool is_ipv4 = strchr(ip_s, '.') ? true : false;
-
-    if (is_ipv4) {
-        ovs_be32 ip;
-
-        if (!ip_parse(ip_s, &ip)) {
-            destroy_lport_addresses(&lrp_networks);
-            return false;
-        }
-
-        for (int i = 0; i < lrp_networks.n_ipv4_addrs; i++) {
-            const struct ipv4_netaddr *na = &lrp_networks.ipv4_addrs[i];
-
-            if (!((na->network ^ ip) & na->mask)) {
-                destroy_lport_addresses(&lrp_networks);
-                return true;
-            }
-        }
-    } else {
-        struct in6_addr ip6;
-
-        if (!ipv6_parse(ip_s, &ip6)) {
-            destroy_lport_addresses(&lrp_networks);
-            return false;
-        }
-
-        for (int i = 0; i < lrp_networks.n_ipv6_addrs; i++) {
-            const struct ipv6_netaddr *na = &lrp_networks.ipv6_addrs[i];
-            struct in6_addr xor_addr = ipv6_addr_bitxor(&na->network, &ip6);
-            struct in6_addr and_addr = ipv6_addr_bitand(&xor_addr, &na->mask);
-
-            if (ipv6_is_zero(&and_addr)) {
-                destroy_lport_addresses(&lrp_networks);
-                return true;
-            }
-        }
-    }
-
+    bool retval = find_lport_address(&lrp_networks, ip_s) ? true : false;
     destroy_lport_addresses(&lrp_networks);
-    return false;
+    return retval;
 }
 
 static void

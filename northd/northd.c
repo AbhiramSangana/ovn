@@ -736,6 +736,20 @@ snat_ip_add(struct ovn_datapath *od, const char *ip, struct ovn_nat *nat_entry)
     }
 }
 
+/* Returns true if the given router port 'op' (assumed to be a distributed
+ * gateway port) is the relevant DGP where the NAT rule of the router needs to
+ * be applied. */
+static bool
+is_nat_gateway_port(const struct nbrec_nat *nat, const struct ovn_port *op)
+{
+    if (op->od->n_l3dgw_ports > 1
+        && ((!nat->gateway_port && !find_lrp_member_ip(op, nat->external_ip))
+            || (nat->gateway_port && nat->gateway_port != op->nbrp))) {
+        return false;
+    }
+    return true;
+}
+
 static void
 init_nat_entries(struct ovn_datapath *od)
 {
@@ -2850,9 +2864,7 @@ get_nat_addresses(const struct ovn_port *op, size_t *n, bool routable_only,
 
         /* Not including external IP of NAT rules whose gateway_port is
          * not 'op'. */
-        if (op->od->n_l3dgw_ports > 1 &&
-            ((!nat->gateway_port && !find_lrp_member_ip(op, nat->external_ip))
-             || (nat->gateway_port && nat->gateway_port != op->nbrp))) {
+        if (!is_nat_gateway_port(nat, op)) {
             continue;
         }
 
@@ -8613,53 +8625,7 @@ build_bfd_table(struct lflow_input *input_data,
 static const char *
 find_lrp_member_ip(const struct ovn_port *op, const char *ip_s)
 {
-    bool is_ipv4 = strchr(ip_s, '.') ? true : false;
-
-    if (is_ipv4) {
-        ovs_be32 ip;
-
-        if (!ip_parse(ip_s, &ip)) {
-            static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 1);
-            VLOG_WARN_RL(&rl, "bad ip address %s", ip_s);
-            return NULL;
-        }
-
-        for (int i = 0; i < op->lrp_networks.n_ipv4_addrs; i++) {
-            const struct ipv4_netaddr *na = &op->lrp_networks.ipv4_addrs[i];
-
-            if (!((na->network ^ ip) & na->mask)) {
-                /* There should be only 1 interface that matches the
-                 * supplied IP.  Otherwise, it's a configuration error,
-                 * because subnets of a router's interfaces should NOT
-                 * overlap. */
-                return na->addr_s;
-            }
-        }
-    } else {
-        struct in6_addr ip6;
-
-        if (!ipv6_parse(ip_s, &ip6)) {
-            static struct vlog_rate_limit rl = VLOG_RATE_LIMIT_INIT(5, 1);
-            VLOG_WARN_RL(&rl, "bad ipv6 address %s", ip_s);
-            return NULL;
-        }
-
-        for (int i = 0; i < op->lrp_networks.n_ipv6_addrs; i++) {
-            const struct ipv6_netaddr *na = &op->lrp_networks.ipv6_addrs[i];
-            struct in6_addr xor_addr = ipv6_addr_bitxor(&na->network, &ip6);
-            struct in6_addr and_addr = ipv6_addr_bitand(&xor_addr, &na->mask);
-
-            if (ipv6_is_zero(&and_addr)) {
-                /* There should be only 1 interface that matches the
-                 * supplied IP.  Otherwise, it's a configuration error,
-                 * because subnets of a router's interfaces should NOT
-                 * overlap. */
-                return na->addr_s;
-            }
-        }
-    }
-
-    return NULL;
+    return find_lport_address(&op->lrp_networks, ip_s);
 }
 
 static struct ovn_port*
@@ -10394,11 +10360,9 @@ build_lrouter_port_nat_arp_nd_flow(struct ovn_port *op,
     const struct nbrec_nat *nat = nat_entry->nb;
     struct ds match = DS_EMPTY_INITIALIZER;
 
-    /* ARP/ND should be sent from distributed gateway port relevant to
-     * the NAT rule. */
-    if (op->od->n_l3dgw_ports > 1 &&
-        ((!nat->gateway_port && !find_lrp_member_ip(op, nat->external_ip)) ||
-         (nat->gateway_port && nat->gateway_port != op->nbrp))) {
+    /* ARP/ND should be sent from distributed gateway port where the NAT rule
+     * will be applied. */
+    if (!is_nat_gateway_port(nat, op)) {
         return;
     }
 
