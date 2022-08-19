@@ -287,7 +287,7 @@ enum ovn_stage {
  * +----+----------------------------------------------+ G |                  |
  * | R7 |                   UNUSED                     | 1 |                  |
  * +----+----------------------------------------------+---+------------------+
- * | R8 |                   UNUSED                     |
+ * | R8 |                DROP_CT_ZONE                  |
  * +----+----------------------------------------------+
  * | R9 |                   UNUSED                     |
  * +----+----------------------------------------------+
@@ -6343,6 +6343,11 @@ consider_acl(struct hmap *lflows, struct ovn_datapath *od,
             } else {
                 ds_put_format(match, " && (%s)", acl->match);
                 build_acl_log(actions, acl, meter_groups);
+                if (acl->label) {
+                    ds_put_format(actions, "ct_commit_drop { "
+                                  "ct_label.label = %"PRId64"; };",
+                                  acl->label);
+                }
                 ds_put_cstr(actions, "/* drop */");
                 ovn_lflow_add_with_hint(lflows, od, stage,
                                         acl->priority + OVN_ACL_PRI_OFFSET,
@@ -6363,6 +6368,7 @@ consider_acl(struct hmap *lflows, struct ovn_datapath *od,
             ds_clear(match);
             ds_clear(actions);
             ds_put_cstr(match, REGBIT_ACL_HINT_BLOCK " == 1");
+            // TBD: update ct_label
             ds_put_format(actions, "ct_commit { %s = 1; }; ",
                           ct_blocked_match);
             if (!strcmp(acl->action, "reject")) {
