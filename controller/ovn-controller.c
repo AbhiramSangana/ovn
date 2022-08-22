@@ -660,8 +660,14 @@ update_ct_zones(const struct shash *binding_lports,
     unsigned long unreq_snat_zones[BITMAP_N_LONGS(MAX_CT_ZONES)];
 
     struct shash_node *shash_node;
+    const struct binding_lport *lp;
     SHASH_FOR_EACH (shash_node, binding_lports) {
         sset_add(&all_users, shash_node->name);
+
+        lp = shash_node->data;
+        char *drop_zone = alloc_nat_zone_key(lp->pb->header_.uuid, "drop");
+        sset_add(&all_users, drop_zone);
+        free(drop_zone);
     }
 
     /* Local patched datapath (gateway routers) need zones assigned. */
