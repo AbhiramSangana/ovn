@@ -6345,7 +6345,7 @@ consider_acl(struct hmap *lflows, struct ovn_datapath *od,
                 build_acl_log(actions, acl, meter_groups);
                 if (acl->label) {
                     ds_put_format(actions, "ct_commit_drop { "
-                                  "ct_label.label = %"PRId64"; };",
+                                  "ct_label.label = %"PRId64"; }; ",
                                   acl->label);
                 }
                 ds_put_cstr(actions, "/* drop */");

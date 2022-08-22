@@ -4600,6 +4600,54 @@ encode_CHK_ECMP_NH(const struct ovnact_result *res,
                            MLF_LOOKUP_COMMIT_ECMP_NH_BIT, ofpacts);
 }
 
+static void
+parse_ct_commit_drop(struct action_context *ctx)
+{
+    parse_nested_action(ctx, OVNACT_CT_COMMIT_DROP, "ip", WR_CT_COMMIT);
+}
+
+static void
+format_CT_COMMIT_DROP(const struct ovnact_nest *on, struct ds *s)
+{
+    format_nested_action(on, "ct_commit_drop", s);
+}
+
+static void
+encode_CT_COMMIT_DROP(const struct ovnact_nest *on,
+                      const struct ovnact_encode_params *ep OVS_UNUSED,
+                      struct ofpbuf *ofpacts)
+{
+    struct ofpact_conntrack *ct = ofpact_put_CT(ofpacts);
+    ct->flags = NX_CT_F_COMMIT;
+    ct->recirc_table = NX_CT_RECIRC_NONE;
+    ct->zone_src.field = mf_from_id(MFF_LOG_ACL_DROP_ZONE);
+    ct->zone_src.ofs = 0;
+    ct->zone_src.n_bits = 16;
+
+    /* If the datapath supports all-zero SNAT then use it to avoid tuple
+     * collisions at commit time between NATed and firewalled-only sessions.
+     */
+    if (ovs_feature_is_supported(OVS_CT_ZERO_SNAT_SUPPORT)) {
+        size_t nat_offset = ofpacts->size;
+        ofpbuf_pull(ofpacts, nat_offset);
+
+        struct ofpact_nat *nat = ofpact_put_NAT(ofpacts);
+        nat->flags = 0;
+        nat->range_af = AF_UNSPEC;
+        nat->flags |= NX_NAT_F_SRC;
+        ofpacts->header = ofpbuf_push_uninit(ofpacts, nat_offset);
+        ct = ofpacts->header;
+    }
+
+    size_t set_field_offset = ofpacts->size;
+    ofpbuf_pull(ofpacts, set_field_offset);
+
+    ovnacts_encode(on->nested, on->nested_len, ep, ofpacts);
+    ofpacts->header = ofpbuf_push_uninit(ofpacts, set_field_offset);
+    ct = ofpacts->header;
+    ofpact_finish(ofpacts, &ct->ofpact);
+}
+
 /* Parses an assignment or exchange or put_dhcp_opts action. */
 static void
 parse_set_action(struct action_context *ctx)
@@ -4790,6 +4838,8 @@ parse_action(struct action_context *ctx)
         parse_put_fdb(ctx, ovnact_put_PUT_FDB(ctx->ovnacts));
     } else if (lexer_match_id(ctx->lexer, "commit_ecmp_nh")) {
         parse_commit_ecmp_nh(ctx, ovnact_put_COMMIT_ECMP_NH(ctx->ovnacts));
+    } else if (lexer_match_id(ctx->lexer, "ct_commit_drop")) {
+        parse_ct_commit_drop(ctx);
     } else {
         lexer_syntax_error(ctx->lexer, "expecting action");
     }
