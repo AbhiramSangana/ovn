@@ -60,6 +60,7 @@ struct zone_ids {
     int ct;                     /* MFF_LOG_CT_ZONE. */
     int dnat;                   /* MFF_LOG_DNAT_ZONE. */
     int snat;                   /* MFF_LOG_SNAT_ZONE. */
+    int drop;                   /* MFF_LOG_ACL_DROP_ZONE. */
 };
 
 struct tunnel {
@@ -211,6 +212,10 @@ get_zone_ids(const struct sbrec_port_binding *binding,
     char *snat = alloc_nat_zone_key(key, "snat");
     zone_ids.snat = simap_get(ct_zones, snat);
     free(snat);
+
+    char *drop_zone = alloc_nat_zone_key(&binding->header_.uuid, "drop");
+    zone_ids.drop = simap_get(ct_zones, drop_zone);
+    free(drop_zone);
 
     return zone_ids;
 }
@@ -821,6 +826,9 @@ put_zones_ofpacts(const struct zone_ids *zone_ids, struct ofpbuf *ofpacts_p)
         }
         if (zone_ids->snat) {
             put_load(zone_ids->snat, MFF_LOG_SNAT_ZONE, 0, 32, ofpacts_p);
+        }
+        if (zone_ids->drop) {
+            put_load(zone_ids->drop, MFF_LOG_ACL_DROP_ZONE, 0, 32, ofpacts_p);
         }
     }
 }
