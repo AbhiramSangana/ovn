@@ -873,17 +873,17 @@ put_local_common_flows(uint32_t dp_key,
          * Clear the logical registers (for consistent behavior with packets
          * that get tunneled) except MFF_LOG_ACL_DROP_ZONE. */
         match_init_catchall(&match);
-        ofpbuf_clear(&ofpacts);
-        match_set_metadata(match, htonll(dp_key));
+        ofpbuf_clear(ofpacts_p);
+        match_set_metadata(&match, htonll(dp_key));
         for (int i = 0; i < MFF_N_LOG_REGS; i++) {
             if (i != MFF_LOG_ACL_DROP_ZONE) {
-                put_load(0, MFF_REG0 + i, 0, 32, &ofpacts);
+                put_load(0, MFF_REG0 + i, 0, 32, ofpacts_p);
             }
         }
-        put_resubmit(OFTABLE_LOG_EGRESS_PIPELINE, &ofpacts);
+        put_resubmit(OFTABLE_LOG_EGRESS_PIPELINE, ofpacts_p);
         ofctrl_add_flow(flow_table, OFTABLE_CHECK_LOOPBACK, 1,
                         pb->datapath->header_.uuid.parts[0], &match,
-                        &ofpacts, &pb->datapath->header_.uuid);
+                        ofpacts_p, &pb->datapath->header_.uuid);
     }
 
     /* Table 39, Priority 100.
