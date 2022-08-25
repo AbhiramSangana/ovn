@@ -2154,6 +2154,16 @@ ct_zones_runtime_data_handler(struct engine_node *node, void *data)
                                         &ct_zones_data->pending);
                     updated = true;
                 }
+                char *drop_zone = alloc_nat_zone_key(
+                    &t_lport->pb->header_.uuid, "drop");
+                if (!simap_contains(&ct_zones_data->current, drop_zone)) {
+                    alloc_id_to_ct_zone(drop_zone,
+                                        &ct_zones_data->current,
+                                        ct_zones_data->bitmap, &scan_start,
+                                        &ct_zones_data->pending);
+                    updated = true;
+                }
+                free(drop_zone);
             } else if (t_lport->tracked_type == TRACKED_RESOURCE_REMOVED) {
                 struct simap_node *ct_zone =
                     simap_find(&ct_zones_data->current,
