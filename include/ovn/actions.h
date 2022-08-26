@@ -121,6 +121,7 @@ struct ovn_extend_table;
     OVNACT(COMMIT_ECMP_NH,    ovnact_commit_ecmp_nh)  \
     OVNACT(CHK_ECMP_NH_MAC,   ovnact_result)          \
     OVNACT(CHK_ECMP_NH,       ovnact_result)          \
+    OVNACT(CT_COMMIT_DROP,    ovnact_nest)            \
 
 /* enum ovnact_type, with a member OVNACT_<ENUM> for each action. */
 enum OVS_PACKED_ENUM ovnact_type {
