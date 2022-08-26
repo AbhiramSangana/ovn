@@ -1408,6 +1408,23 @@
           </p>
         </dd>
 
+        <dt><code>ct_commit_drop { };</code></dt>
+        <dt><code>ct_commit_drop { ct_mark=<var>value[/mask]</var>; };</code></dt>
+        <dt><code>ct_commit_drop { ct_label=<var>value[/mask]</var>; };</code></dt>
+        <dt><code>ct_commit_drop { ct_mark=<var>value[/mask]</var>; ct_label=<var>value[/mask]</var>; };</code></dt>
+        <dd>
+          <p>
+            This action is identical to <code>ct_commit</code> except that the
+            connection tracking entry is committed in a different zone.
+          </p>
+
+          <p>
+            This action was added to store connections dropped by ACLs in a
+            separate zone that is managed independently of the
+            <code>ct_commit</code> zone, for debugging.
+          </p>
+        </dd>
+
         <dt><code>ct_dnat;</code></dt>
         <dt><code>ct_dnat(<var>IP</var>);</code></dt>
         <dd>

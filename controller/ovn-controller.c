@@ -725,8 +725,15 @@ update_ct_zones(const struct shash *binding_lports,
     struct simap unreq_snat_zones = SIMAP_INITIALIZER(&unreq_snat_zones);
 
     struct shash_node *shash_node;
+    const struct binding_lport *lport;
     SHASH_FOR_EACH (shash_node, binding_lports) {
         sset_add(&all_users, shash_node->name);
+
+        /* Zone for committing dropped connections of a vNIC. */
+        lport = shash_node->data;
+        char *drop_zone = alloc_ct_zone_key(&lport->pb->header_.uuid, "drop");
+        sset_add(&all_users, drop_zone);
+        free(drop_zone);
     }
 
     /* Local patched datapath (gateway routers) need zones assigned. */
@@ -734,8 +741,8 @@ update_ct_zones(const struct shash *binding_lports,
     HMAP_FOR_EACH (ld, hmap_node, local_datapaths) {
         /* XXX Add method to limit zone assignment to logical router
          * datapaths with NAT */
-        char *dnat = alloc_nat_zone_key(&ld->datapath->header_.uuid, "dnat");
-        char *snat = alloc_nat_zone_key(&ld->datapath->header_.uuid, "snat");
+        char *dnat = alloc_ct_zone_key(&ld->datapath->header_.uuid, "dnat");
+        char *snat = alloc_ct_zone_key(&ld->datapath->header_.uuid, "snat");
         sset_add(&all_users, dnat);
         sset_add(&all_users, snat);
 
@@ -2415,7 +2422,7 @@ ct_zones_datapath_binding_handler(struct engine_node *node, void *data)
         /* Check if the requested snat zone has changed for the datapath
          * or not.  If so, then fall back to full recompute of
          * ct_zone engine. */
-        char *snat_dp_zone_key = alloc_nat_zone_key(&dp->header_.uuid, "snat");
+        char *snat_dp_zone_key = alloc_ct_zone_key(&dp->header_.uuid, "snat");
         struct simap_node *simap_node = simap_find(&ct_zones_data->current,
                                                    snat_dp_zone_key);
         free(snat_dp_zone_key);
@@ -2473,6 +2480,16 @@ ct_zones_runtime_data_handler(struct engine_node *node, void *data)
                                         &ct_zones_data->pending);
                     updated = true;
                 }
+                char *drop_zone = alloc_ct_zone_key(
+                    &t_lport->pb->header_.uuid, "drop");
+                if (!simap_contains(&ct_zones_data->current, drop_zone)) {
+                    alloc_id_to_ct_zone(drop_zone,
+                                        &ct_zones_data->current,
+                                        ct_zones_data->bitmap, &scan_start,
+                                        &ct_zones_data->pending);
+                    updated = true;
+                }
+                free(drop_zone);
             } else if (t_lport->tracked_type == TRACKED_RESOURCE_REMOVED) {
                 struct simap_node *ct_zone =
                     simap_find(&ct_zones_data->current,

@@ -310,7 +310,7 @@ enum ovn_stage {
  * +----+----------------------------------------------+---+-----------------------------------+
  * | R8 |              LB_AFF_MATCH_PORT               |
  * +----+----------------------------------------------+
- * | R9 |                   UNUSED                     |
+ * | R9 |              ACL DROP CT ZONE                |
  * +----+----------------------------------------------+
  *
  * Logical Router pipeline:
@@ -6469,6 +6469,11 @@ consider_acl(struct hmap *lflows, struct ovn_datapath *od,
             } else {
                 ds_put_format(match, " && (%s)", acl->match);
                 build_acl_log(actions, acl, meter_groups);
+                if (acl->label) {
+                    ds_put_format(actions, "ct_commit_drop { "
+                                  "ct_label.label = %"PRId64"; }; ",
+                                  acl->label);
+                }
                 ds_put_cstr(actions, debug_implicit_drop_action());
                 ovn_lflow_add_with_hint(lflows, od, stage,
                                         acl->priority + OVN_ACL_PRI_OFFSET,
@@ -6489,8 +6494,13 @@ consider_acl(struct hmap *lflows, struct ovn_datapath *od,
             ds_clear(match);
             ds_clear(actions);
             ds_put_cstr(match, REGBIT_ACL_HINT_BLOCK " == 1");
-            ds_put_format(actions, "ct_commit { %s = 1; }; ",
+            ds_put_format(actions, "ct_commit { %s = 1; ",
                           ct_blocked_match);
+            if (acl->label) {
+                ds_put_format(actions, "ct_label.label = %"PRId64"; ",
+                              acl->label);
+            }
+            ds_put_cstr(actions, "}; ");
             if (!strcmp(acl->action, "reject")) {
                 build_reject_acl_rules(od, lflows, stage, acl, match,
                                        actions, &acl->header_, meter_groups);
