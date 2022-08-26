@@ -2225,10 +2225,11 @@ nbctl_acl_add(struct ctl_context *ctx)
     /* Set the ACL label */
     const char *label = shash_find_data(&ctx->options, "--label");
     if (label) {
-      /* Ensure that the action is either allow or allow-related */
-      if (strcmp(action, "allow") && strcmp(action, "allow-related")) {
+      /* Ensure that the action is either allow or allow-related or drop */
+      if (strcmp(action, "allow") && strcmp(action, "allow-related") &&
+          strcmp(action, "drop")) {
         ctl_error(ctx, "label can only be set with actions \"allow\" or "
-                  "\"allow-related\"");
+                  "\"allow-related\" or \"drop\"");
         return;
       }
 
