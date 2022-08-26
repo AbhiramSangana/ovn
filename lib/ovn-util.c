@@ -443,12 +443,12 @@ split_addresses(const char *addresses, struct svec *ipv4_addrs,
     destroy_lport_addresses(&laddrs);
 }
 
-/* Allocates a key for NAT conntrack zone allocation for a provided
+/* Allocates a key for conntrack zone allocation for a provided
  * 'key' record and a 'type'.
  *
  * It is the caller's responsibility to free the allocated memory. */
 char *
-alloc_nat_zone_key(const struct uuid *key, const char *type)
+alloc_ct_zone_key(const struct uuid *key, const char *type)
 {
     return xasprintf(UUID_FMT"_%s", UUID_ARGS(key), type);
 }

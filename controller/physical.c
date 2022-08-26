@@ -205,15 +205,15 @@ get_zone_ids(const struct sbrec_port_binding *binding,
 
     const struct uuid *key = &binding->datapath->header_.uuid;
 
-    char *dnat = alloc_nat_zone_key(key, "dnat");
+    char *dnat = alloc_ct_zone_key(key, "dnat");
     zone_ids.dnat = simap_get(ct_zones, dnat);
     free(dnat);
 
-    char *snat = alloc_nat_zone_key(key, "snat");
+    char *snat = alloc_ct_zone_key(key, "snat");
     zone_ids.snat = simap_get(ct_zones, snat);
     free(snat);
 
-    char *drop_zone = alloc_nat_zone_key(&binding->header_.uuid, "drop");
+    char *drop_zone = alloc_ct_zone_key(&binding->header_.uuid, "drop");
     zone_ids.drop = simap_get(ct_zones, drop_zone);
     free(drop_zone);
 

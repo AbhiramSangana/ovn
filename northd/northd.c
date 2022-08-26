@@ -287,7 +287,7 @@ enum ovn_stage {
  * +----+----------------------------------------------+ G |                  |
  * | R7 |                   UNUSED                     | 1 |                  |
  * +----+----------------------------------------------+---+------------------+
- * | R8 |                DROP_CT_ZONE                  |
+ * | R8 |        DROP_CT_ZONE (<= IN(/OUT)_ACL         |
  * +----+----------------------------------------------+
  * | R9 |                   UNUSED                     |
  * +----+----------------------------------------------+
@@ -6368,9 +6368,13 @@ consider_acl(struct hmap *lflows, struct ovn_datapath *od,
             ds_clear(match);
             ds_clear(actions);
             ds_put_cstr(match, REGBIT_ACL_HINT_BLOCK " == 1");
-            // TBD: update ct_label
-            ds_put_format(actions, "ct_commit { %s = 1; }; ",
+            ds_put_format(actions, "ct_commit { %s = 1; ",
                           ct_blocked_match);
+            if (acl->label) {
+                ds_put_format(actions, "ct_label.label = %"PRId64"; ",
+                              acl->label);
+            }
+            ds_put_cstr(actions, "}; ")
             if (!strcmp(acl->action, "reject")) {
                 build_reject_acl_rules(od, lflows, stage, acl, match,
                                        actions, &acl->header_, meter_groups);
