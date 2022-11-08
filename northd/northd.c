@@ -3465,7 +3465,7 @@ ovn_port_update_sbrec(struct northd_input *input_data,
 
             const char *router_port = smap_get(&op->nbsp->options,
                                                "router-port");
-            if (router_port || chassis) {
+            if (router_port || chassis || op->od->has_label_drop_acl) {
                 struct smap new;
                 smap_init(&new);
                 if (router_port) {
@@ -3473,6 +3473,9 @@ ovn_port_update_sbrec(struct northd_input *input_data,
                 }
                 if (chassis) {
                     smap_add(&new, "l3gateway-chassis", chassis);
+                }
+                if (op->od->has_label_drop_acl) {
+                    smap_add(&new, "commit-dropped-connections", "true");
                 }
                 sbrec_port_binding_set_options(op->sb, &new);
                 smap_destroy(&new);
@@ -5478,6 +5481,8 @@ ls_get_acl_flags(struct ovn_datapath *od)
 {
     od->has_acls = false;
     od->has_stateful_acl = false;
+    od->has_label_drop_acl = false;
+
 
     if (od->nbs->n_acls) {
         od->has_acls = true;
@@ -5486,6 +5491,11 @@ ls_get_acl_flags(struct ovn_datapath *od)
             struct nbrec_acl *acl = od->nbs->acls[i];
             if (!strcmp(acl->action, "allow-related")) {
                 od->has_stateful_acl = true;
+            }
+            if (acl->label && !strcmp(acl->action, "drop")) {
+                od->has_label_drop_acl = true;
+            }
+            if (od->has_stateful_acl && od->has_label_drop_acl) {
                 return;
             }
         }
@@ -5500,6 +5510,11 @@ ls_get_acl_flags(struct ovn_datapath *od)
                 struct nbrec_acl *acl = ls_pg->nb_pg->acls[i];
                 if (!strcmp(acl->action, "allow-related")) {
                     od->has_stateful_acl = true;
+                }
+                if (acl->label && !strcmp(acl->action, "drop")) {
+                    od->has_label_drop_acl = true;
+                }
+                if (od->has_stateful_acl && od->has_label_drop_acl) {
                     return;
                 }
             }

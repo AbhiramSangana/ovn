@@ -213,9 +213,9 @@ get_zone_ids(const struct sbrec_port_binding *binding,
     zone_ids.snat = simap_get(ct_zones, snat);
     free(snat);
 
-    char *drop_zone = alloc_ct_zone_key(&binding->header_.uuid, "drop");
-    zone_ids.drop = simap_get(ct_zones, drop_zone);
-    free(drop_zone);
+    char *drop_zone_key = alloc_ct_zone_key(&binding->header_.uuid, "drop");
+    zone_ids.drop = simap_get(ct_zones, drop_zone_key);
+    free(drop_zone_key);
 
     return zone_ids;
 }

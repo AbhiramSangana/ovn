@@ -209,6 +209,7 @@ struct ovn_datapath {
     bool has_unknown;
     bool has_acls;
     bool has_vtep_lports;
+    bool has_label_drop_acl;
 
     /* IPAM data. */
     struct ipam_info ipam_info;
