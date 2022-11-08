@@ -668,7 +668,7 @@ update_ct_zones(const struct shash *binding_lports,
 
         /* Zone for committing dropped connections of a vNIC. */
         lport = shash_node->data;
-        if (smap_get(lport->pb->options, "commit-dropped-connections")) {
+        if (smap_get(&lport->pb->options, "commit-dropped-connections")) {
             char *drop_zone_key = alloc_ct_zone_key(&lport->pb->header_.uuid,
                                                     "drop");
             sset_add(&all_users, drop_zone_key);
@@ -2217,7 +2217,7 @@ ct_zones_runtime_data_handler(struct engine_node *node, void *data)
                                         &ct_zones_data->pending);
                     updated = true;
                 }
-                if (smap_get(t_lport->pb->options,
+                if (smap_get(&t_lport->pb->options,
                              "commit-dropped-connections")) {
                     char *drop_zone_key = alloc_ct_zone_key(
                         &t_lport->pb->header_.uuid, "drop");
