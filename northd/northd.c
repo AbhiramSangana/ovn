@@ -5479,7 +5479,6 @@ ls_get_acl_flags(struct ovn_datapath *od)
     od->has_acls = false;
     od->has_stateful_acl = false;
 
-
     if (od->nbs->n_acls) {
         od->has_acls = true;
 

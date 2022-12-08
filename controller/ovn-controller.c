@@ -662,18 +662,8 @@ update_ct_zones(const struct shash *binding_lports,
     unsigned long unreq_snat_zones[BITMAP_N_LONGS(MAX_CT_ZONES)];
 
     struct shash_node *shash_node;
-    const struct binding_lport *lport;
     SHASH_FOR_EACH (shash_node, binding_lports) {
         sset_add(&all_users, shash_node->name);
-
-        /* Zone for committing dropped connections of a vNIC. */
-        lport = shash_node->data;
-        if (smap_get(&lport->pb->options, "commit-dropped-connections")) {
-            char *drop_zone_key = alloc_ct_zone_key(&lport->pb->header_.uuid,
-                                                    "drop");
-            sset_add(&all_users, drop_zone_key);
-            free(drop_zone_key);
-        }
     }
 
     /* Local patched datapath (gateway routers) need zones assigned. */
@@ -692,6 +682,14 @@ update_ct_zones(const struct shash *binding_lports,
         }
         free(dnat);
         free(snat);
+
+        /* Zone for committing connections dropped by ACLs with labels. */
+        if (ld->is_switch) {
+            char *drop = alloc_ct_zone_key(
+                &ld->datapath->header_.uuid, "drop");
+            sset_add(&all_users, drop);
+            free(drop);
+        }
     }
 
     /* Delete zones that do not exist in above sset. */
@@ -2217,21 +2215,6 @@ ct_zones_runtime_data_handler(struct engine_node *node, void *data)
                                         &ct_zones_data->pending);
                     updated = true;
                 }
-                if (smap_get(&t_lport->pb->options,
-                             "commit-dropped-connections")) {
-                    char *drop_zone_key = alloc_ct_zone_key(
-                        &t_lport->pb->header_.uuid, "drop");
-                    if (!simap_contains(&ct_zones_data->current, drop_zone_key)) {
-                        alloc_id_to_ct_zone(drop_zone_key,
-                                            &ct_zones_data->current,
-                                            ct_zones_data->bitmap,
-                                            &scan_start,
-                                            &ct_zones_data->pending);
-                        updated = true;
-                    }
-                    free(drop_zone_key);
-                }
-                
             } else if (t_lport->tracked_type == TRACKED_RESOURCE_REMOVED) {
                 struct simap_node *ct_zone =
                     simap_find(&ct_zones_data->current,
@@ -2245,21 +2228,6 @@ ct_zones_runtime_data_handler(struct engine_node *node, void *data)
                     simap_delete(&ct_zones_data->current, ct_zone);
                     updated = true;
                 }
-
-                char *drop_zone_key = alloc_ct_zone_key(
-                        &t_lport->pb->header_.uuid, "drop");
-                ct_zone = simap_find(&ct_zones_data->current,
-                                     drop_zone_key);
-                if (ct_zone) {
-                    add_pending_ct_zone_entry(
-                        &ct_zones_data->pending, CT_ZONE_OF_QUEUED,
-                        ct_zone->data, false, ct_zone->name);
-
-                    bitmap_set0(ct_zones_data->bitmap, ct_zone->data);
-                    simap_delete(&ct_zones_data->current, ct_zone);
-                    updated = true;
-                }
-                free(drop_zone_key);
             }
         }
     }
