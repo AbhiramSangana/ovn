@@ -5230,7 +5230,11 @@ parse_ct_commit_drop(struct action_context *ctx)
 static void
 format_CT_COMMIT_DROP(const struct ovnact_nest *on, struct ds *s)
 {
-    format_nested_action(on, "ct_commit_drop", s);
+    if (on->nested_len) {
+        format_nested_action(on, "ct_commit_drop", s);
+    } else {
+        ds_put_cstr(s, "ct_commit_drop;");
+    }
 }
 
 static void
