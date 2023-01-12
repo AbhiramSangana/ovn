@@ -1414,14 +1414,19 @@
         <dt><code>ct_commit_drop { ct_mark=<var>value[/mask]</var>; ct_label=<var>value[/mask]</var>; };</code></dt>
         <dd>
           <p>
-            This action is identical to <code>ct_commit</code> except that the
-            connection tracking entry is committed in a different zone.
+            Commit the flow to a connection tracking entry in the
+            logical switch DROP zone. This action is identical to
+            <code>ct_commit</code> besides the connection tracking entry
+            the flow is committed to.
           </p>
 
           <p>
-            This action was added to store connections dropped by ACLs in a
-            separate zone that is managed independently of the
-            <code>ct_commit</code> zone, for debugging.
+            This action is useful to commit connection tracking state for
+            packets before they are dropped for debugging purposes.
+            Committing the packets in a separate zone ensures that connection
+            tracking state of dropped connections doesn't interact with the
+            state of allowed connections and allows the DROP zone to be
+            managed separately.
           </p>
         </dd>
 

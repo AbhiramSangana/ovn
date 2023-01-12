@@ -34661,7 +34661,6 @@ OVN_CLEANUP([hv1])
 AT_CLEANUP
 ])
 
-
 OVN_FOR_EACH_NORTHD([
 AT_SETUP([ovn-controller - check logical_switch drop ct zone])
 ovn_start
@@ -34686,9 +34685,11 @@ AT_CHECK([as hv1 ovn-appctl -t ovn-controller ct-zone-list | \
 grep ${ls_uuid}_drop -c], [0], [1
 ])
 
+# Check that register storing the drop ct zone is not cleared.
 AT_CHECK([as hv1 ovs-ofctl dump-flows br-int table=39 | grep priority=1 | ofctl_strip_all | ], [0], [dnl
  table=39, priority=1,metadata=0x1 actions=load:0->NXM_NX_REG0[],load:0->NXM_NX_REG1[],load:0->NXM_NX_REG2[],load:0->NXM_NX_REG3[],load:0->NXM_NX_REG4[],load:0->NXM_NX_REG5[],load:0->NXM_NX_REG6[],load:0->NXM_NX_REG7[],load:0->NXM_NX_REG8[],resubmit(,40)
 ])
 
 OVN_CLEANUP([hv1])
 AT_CLEANUP
+])
