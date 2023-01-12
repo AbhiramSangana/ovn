@@ -6463,7 +6463,7 @@ consider_acl(struct hmap *lflows, struct ovn_datapath *od,
             ds_clear(match);
             ds_clear(actions);
             ds_put_cstr(match, REGBIT_ACL_HINT_DROP " == 1");
-            /* If the ACL has a label, we commit the dropped connection in
+            /* If the ACL has a label, we commit the packet in
              * a separate zone for debugging purposes before
              * rejecting/dropping it. */
             if (acl->label) {

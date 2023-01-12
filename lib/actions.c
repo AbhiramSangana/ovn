@@ -5213,7 +5213,18 @@ encode_CHK_LB_AFF(const struct ovnact_result *res,
 static void
 parse_ct_commit_drop(struct action_context *ctx)
 {
-    parse_nested_action(ctx, OVNACT_CT_COMMIT_DROP, "ip", WR_CT_COMMIT);
+    if (ctx->lexer->token.type == LEX_T_LCURLY) {
+        parse_nested_action(ctx, OVNACT_CT_COMMIT_DROP, "ip",
+                            WR_CT_COMMIT);
+    } else {
+        /* Add an empty nested action to allow for "ct_commit_drop;" syntax */
+        add_prerequisite(ctx, "ip");
+        struct ovnact_nest *on = ovnact_put(ctx->ovnacts,
+                                            OVNACT_CT_COMMIT_DROP,
+                                            OVNACT_ALIGN(sizeof *on));
+        on->nested_len = 0;
+        on->nested = NULL;
+    }
 }
 
 static void
