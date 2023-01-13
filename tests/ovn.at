@@ -34664,6 +34664,7 @@ AT_CLEANUP
 OVN_FOR_EACH_NORTHD([
 AT_SETUP([ovn-controller - check logical_switch drop ct zone])
 ovn_start
+net_add n1
 
 sim_add hv1
 as hv1
