@@ -34664,20 +34664,17 @@ AT_CLEANUP
 OVN_FOR_EACH_NORTHD([
 AT_SETUP([ovn-controller - check logical_switch drop ct zone])
 ovn_start
-
 net_add n1
 sim_add hv1
 as hv1
-check ovs-vsctl add-br br-phys
-ovn_attach n1 br-phys 172.24.4.1
-check ovs-vsctl set open . external-ids:ovn-bridge-mappings=phys:br-phys
-
-check ovs-vsctl add-port br-int vif0 -- set Interface vif0 external-ids:iface-id=lsp0
+ovs-vsctl add-br br-phys
+ovn_attach n1 br-phys 192.168.0.1
 
 check ovn-nbctl ls-add ls0
 check ovn-nbctl lsp-add ls0 lsp0
-check ovn-nbctl lsp-add ls0 lsp0
 check ovn-nbctl lsp-set-addresses lsp0 "00:00:00:00:00:02 10.0.0.2"
+
+ovs-vsctl -- add-port br-int vif0 -- set interface vif0 external-ids:iface-id=lsp0
 
 # Wait for ovn-northd and ovn-controller to catch up.
 wait_for_ports_up
@@ -34690,7 +34687,7 @@ grep ${ls_uuid}_drop -c], [0], [1
 ])
 
 # Check that register storing the drop ct zone is not cleared.
-AT_CHECK([as hv1 ovs-ofctl dump-flows br-int table=39 | grep priority=1 | ofctl_strip_all], [0], [dnl
+AT_CHECK([as hv1 ovs-ofctl dump-flows br-int table=39 | grep -w 'priority=1' | ofctl_strip_all], [0], [dnl
  table=39, priority=1,metadata=0x1 actions=load:0->NXM_NX_REG0[[]],load:0->NXM_NX_REG1[[]],load:0->NXM_NX_REG2[[]],load:0->NXM_NX_REG3[[]],load:0->NXM_NX_REG4[[]],load:0->NXM_NX_REG5[[]],load:0->NXM_NX_REG6[[]],load:0->NXM_NX_REG7[[]],load:0->NXM_NX_REG8[[]],resubmit(,40)
 ])
 
