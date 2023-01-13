@@ -33608,7 +33608,7 @@ ovn-nbctl lsp-add sw0 sw0-port1 -- lsp-set-addresses sw0-port1 "50:54:00:00:00:0
 ovs-vsctl set interface p0 external-ids:iface-id=sw0-port0
 ovs-vsctl set interface p1 external-ids:iface-id=sw0-port1
 check ovn-nbctl --wait=hv sync
-as hv1 ovs-ofctl dump-flows br-int  | sed 's/cookie=0x.*, duration=.*, table/cookie=??, duration=??, table/' | sed 's/load:0x.->NXM_NX_REG1/load:0x?->NXM_NX_REG1/g' | sed 's/idle_age=[[0-9]], //g' | sort > offlows1
+as hv1 ovs-ofctl dump-flows br-int  | sed 's/cookie=0x.*, duration=.*, table/cookie=??, duration=??, table/' | sed 's/load:0x.->NXM_NX_REG\([[19]]\)/load:0x?->NXM_NX_REG\1/g' | sed 's/idle_age=[[0-9]], //g' | sort > offlows1
 
 ovs-vsctl set interface p0 external-ids:iface-id=foo0
 ovs-vsctl set interface p1 external-ids:iface-id=foo1
@@ -33635,7 +33635,7 @@ sleep 0.5
 # Restart SB
 AT_CHECK([kill -CONT $(cat ovn-sb/ovsdb-server.pid)])
 check ovn-nbctl --wait=hv sync
-as hv1 ovs-ofctl dump-flows br-int | sed 's/cookie=0x.*, duration=.*, table/cookie=??, duration=??, table/' | sed 's/load:0x.->NXM_NX_REG1/load:0x?->NXM_NX_REG1/g' | sed 's/idle_age=[[0-9]], //g' | sort > offlows2
+as hv1 ovs-ofctl dump-flows br-int | sed 's/cookie=0x.*, duration=.*, table/cookie=??, duration=??, table/' | sed 's/load:0x.->NXM_NX_REG\([[19]]\)/load:0x?->NXM_NX_REG\1/g' | sed 's/idle_age=[[0-9]], //g' | sort > offlows2
 AT_CHECK([diff  offlows1 offlows2])
 
 ovn-nbctl ls-del sw0
