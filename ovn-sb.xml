@@ -1408,6 +1408,28 @@
           </p>
         </dd>
 
+        <dt><code>ct_commit_drop { };</code></dt>
+        <dt><code>ct_commit_drop { ct_mark=<var>value[/mask]</var>; };</code></dt>
+        <dt><code>ct_commit_drop { ct_label=<var>value[/mask]</var>; };</code></dt>
+        <dt><code>ct_commit_drop { ct_mark=<var>value[/mask]</var>; ct_label=<var>value[/mask]</var>; };</code></dt>
+        <dd>
+          <p>
+            Commit the flow to a connection tracking entry in the
+            logical switch DROP zone. This action is identical to
+            <code>ct_commit</code> besides the connection tracking entry
+            the flow is committed to.
+          </p>
+
+          <p>
+            This action is useful to commit connection tracking state for
+            packets before they are dropped for debugging purposes.
+            Committing the packets in a separate zone ensures that connection
+            tracking state of dropped connections doesn't interact with the
+            state of allowed connections and allows the DROP zone to be
+            managed separately.
+          </p>
+        </dd>
+
         <dt><code>ct_dnat;</code></dt>
         <dt><code>ct_dnat(<var>IP</var>);</code></dt>
         <dd>

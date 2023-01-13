@@ -4250,87 +4250,109 @@ check ovn-nbctl ls-add sw0
 check ovn-nbctl lsp-add sw0 sw0p1
 
 check ovn-nbctl --wait=sb --label=1234 acl-add sw0 to-lport 1002 tcp allow-related
+check ovn-nbctl --wait=sb --label=2345 acl-add sw0 to-lport 1001 ip drop
 check ovn-nbctl --wait=sb --label=1234 acl-add sw0 from-lport 1002 tcp allow-related
+check ovn-nbctl --wait=sb --label=2345 acl-add sw0 from-lport 1001 ip reject
 
 ovn-sbctl dump-flows sw0 > sw0flows
 AT_CAPTURE_FILE([sw0flows])
 
-AT_CHECK([grep -w "ls_in_acl" sw0flows | grep 2002 | sort | sed 's/table=./table=?/'], [0], [dnl
-  table=? (ls_in_acl          ), priority=2002 , match=(reg0[[7]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
-  table=? (ls_in_acl          ), priority=2002 , match=(reg0[[8]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
+AT_CHECK([grep -w "ls_in_acl" sw0flows | grep -e 2002 -e 2001 | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
+  table=??(ls_in_acl          ), priority=2001 , match=((reg0[[10]] == 1) && ip), action=(ct_commit { ct_mark.blocked = 1; ct_label.label = 2345; };  reg0 = 0; reject { /* eth.dst <-> eth.src; ip.dst <-> ip.src; is implicit. */ outport <-> inport; next(pipeline=egress,table=5); };)
+  table=??(ls_in_acl          ), priority=2001 , match=((reg0[[9]] == 1) && ip), action=(ct_commit_drop { ct_label.label = 2345; };  reg0 = 0; reject { /* eth.dst <-> eth.src; ip.dst <-> ip.src; is implicit. */ outport <-> inport; next(pipeline=egress,table=5); };)
+  table=??(ls_in_acl          ), priority=2002 , match=(reg0[[7]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
+  table=??(ls_in_acl          ), priority=2002 , match=(reg0[[8]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
 ])
-AT_CHECK([grep "ls_in_stateful" sw0flows | sort | sed 's/table=../table=??/'], [0], [dnl
+AT_CHECK([grep "ls_in_stateful" sw0flows | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
   table=??(ls_in_stateful     ), priority=0    , match=(1), action=(next;)
   table=??(ls_in_stateful     ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 0), action=(ct_commit { ct_mark.blocked = 0; }; next;)
   table=??(ls_in_stateful     ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 1), action=(ct_commit { ct_mark.blocked = 0; ct_label.label = reg3; }; next;)
 ])
 
-AT_CHECK([grep -w "ls_out_acl" sw0flows | grep 2002 | sort], [0], [dnl
-  table=4 (ls_out_acl         ), priority=2002 , match=(reg0[[7]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
-  table=4 (ls_out_acl         ), priority=2002 , match=(reg0[[8]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
+AT_CHECK([grep -w "ls_out_acl" sw0flows | grep -e 2002 -e 2001 | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
+  table=??(ls_out_acl         ), priority=2001 , match=(reg0[[10]] == 1 && (ip)), action=(ct_commit { ct_mark.blocked = 1; ct_label.label = 2345; }; /* drop */)
+  table=??(ls_out_acl         ), priority=2001 , match=(reg0[[9]] == 1 && (ip)), action=(ct_commit_drop { ct_label.label = 2345; }; /* drop */)
+  table=??(ls_out_acl         ), priority=2002 , match=(reg0[[7]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
+  table=??(ls_out_acl         ), priority=2002 , match=(reg0[[8]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
 ])
-AT_CHECK([grep "ls_out_stateful" sw0flows | sort], [0], [dnl
-  table=7 (ls_out_stateful    ), priority=0    , match=(1), action=(next;)
-  table=7 (ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 0), action=(ct_commit { ct_mark.blocked = 0; }; next;)
-  table=7 (ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 1), action=(ct_commit { ct_mark.blocked = 0; ct_label.label = reg3; }; next;)
+AT_CHECK([grep "ls_out_stateful" sw0flows | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
+  table=??(ls_out_stateful    ), priority=0    , match=(1), action=(next;)
+  table=??(ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 0), action=(ct_commit { ct_mark.blocked = 0; }; next;)
+  table=??(ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 1), action=(ct_commit { ct_mark.blocked = 0; ct_label.label = reg3; }; next;)
 ])
 
-# Add new ACL without label
+# Add ACLs without labels
 check ovn-nbctl --wait=sb acl-add sw0 to-lport 1002 udp allow-related
+check ovn-nbctl --wait=sb acl-add sw0 to-lport 1001 ip6 drop
 check ovn-nbctl --wait=sb acl-add sw0 from-lport 1002 udp allow-related
+check ovn-nbctl --wait=sb acl-add sw0 from-lport 1001 ip6 reject
 
 ovn-sbctl dump-flows sw0 > sw0flows
 AT_CAPTURE_FILE([sw0flows])
 
-AT_CHECK([grep -w "ls_in_acl" sw0flows | grep 2002 | sort | sed 's/table=./table=?/'], [0], [dnl
-  table=? (ls_in_acl          ), priority=2002 , match=(reg0[[7]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
-  table=? (ls_in_acl          ), priority=2002 , match=(reg0[[7]] == 1 && (udp)), action=(reg0[[1]] = 1; next;)
-  table=? (ls_in_acl          ), priority=2002 , match=(reg0[[8]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
-  table=? (ls_in_acl          ), priority=2002 , match=(reg0[[8]] == 1 && (udp)), action=(next;)
+AT_CHECK([grep -w "ls_in_acl" sw0flows | grep -e 2002 -e 2001 | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
+  table=??(ls_in_acl          ), priority=2001 , match=((reg0[[10]] == 1) && ip), action=(ct_commit { ct_mark.blocked = 1; ct_label.label = 2345; };  reg0 = 0; reject { /* eth.dst <-> eth.src; ip.dst <-> ip.src; is implicit. */ outport <-> inport; next(pipeline=egress,table=5); };)
+  table=??(ls_in_acl          ), priority=2001 , match=((reg0[[10]] == 1) && ip6), action=(ct_commit { ct_mark.blocked = 1; };  reg0 = 0; reject { /* eth.dst <-> eth.src; ip.dst <-> ip.src; is implicit. */ outport <-> inport; next(pipeline=egress,table=5); };)
+  table=??(ls_in_acl          ), priority=2001 , match=((reg0[[9]] == 1) && ip), action=(ct_commit_drop { ct_label.label = 2345; };  reg0 = 0; reject { /* eth.dst <-> eth.src; ip.dst <-> ip.src; is implicit. */ outport <-> inport; next(pipeline=egress,table=5); };)
+  table=??(ls_in_acl          ), priority=2001 , match=((reg0[[9]] == 1) && ip6), action=(reg0 = 0; reject { /* eth.dst <-> eth.src; ip.dst <-> ip.src; is implicit. */ outport <-> inport; next(pipeline=egress,table=5); };)
+  table=??(ls_in_acl          ), priority=2002 , match=(reg0[[7]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
+  table=??(ls_in_acl          ), priority=2002 , match=(reg0[[7]] == 1 && (udp)), action=(reg0[[1]] = 1; next;)
+  table=??(ls_in_acl          ), priority=2002 , match=(reg0[[8]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
+  table=??(ls_in_acl          ), priority=2002 , match=(reg0[[8]] == 1 && (udp)), action=(next;)
 ])
-AT_CHECK([grep "ls_in_stateful" sw0flows | sort | sed 's/table=../table=??/'], [0], [dnl
+AT_CHECK([grep "ls_in_stateful" sw0flows | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
   table=??(ls_in_stateful     ), priority=0    , match=(1), action=(next;)
   table=??(ls_in_stateful     ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 0), action=(ct_commit { ct_mark.blocked = 0; }; next;)
   table=??(ls_in_stateful     ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 1), action=(ct_commit { ct_mark.blocked = 0; ct_label.label = reg3; }; next;)
 ])
 
-AT_CHECK([grep -w "ls_out_acl" sw0flows | grep 2002 | sort], [0], [dnl
-  table=4 (ls_out_acl         ), priority=2002 , match=(reg0[[7]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
-  table=4 (ls_out_acl         ), priority=2002 , match=(reg0[[7]] == 1 && (udp)), action=(reg0[[1]] = 1; next;)
-  table=4 (ls_out_acl         ), priority=2002 , match=(reg0[[8]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
-  table=4 (ls_out_acl         ), priority=2002 , match=(reg0[[8]] == 1 && (udp)), action=(next;)
+AT_CHECK([grep -w "ls_out_acl" sw0flows | grep -e 2002 -e 2001 | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
+  table=??(ls_out_acl         ), priority=2001 , match=(reg0[[10]] == 1 && (ip)), action=(ct_commit { ct_mark.blocked = 1; ct_label.label = 2345; }; /* drop */)
+  table=??(ls_out_acl         ), priority=2001 , match=(reg0[[10]] == 1 && (ip6)), action=(ct_commit { ct_mark.blocked = 1; }; /* drop */)
+  table=??(ls_out_acl         ), priority=2001 , match=(reg0[[9]] == 1 && (ip)), action=(ct_commit_drop { ct_label.label = 2345; }; /* drop */)
+  table=??(ls_out_acl         ), priority=2001 , match=(reg0[[9]] == 1 && (ip6)), action=(/* drop */)
+  table=??(ls_out_acl         ), priority=2002 , match=(reg0[[7]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
+  table=??(ls_out_acl         ), priority=2002 , match=(reg0[[7]] == 1 && (udp)), action=(reg0[[1]] = 1; next;)
+  table=??(ls_out_acl         ), priority=2002 , match=(reg0[[8]] == 1 && (tcp)), action=(reg0[[1]] = 1; reg0[[13]] = 1; reg3 = 1234; next;)
+  table=??(ls_out_acl         ), priority=2002 , match=(reg0[[8]] == 1 && (udp)), action=(next;)
 ])
-AT_CHECK([grep "ls_out_stateful" sw0flows | sort], [0], [dnl
-  table=7 (ls_out_stateful    ), priority=0    , match=(1), action=(next;)
-  table=7 (ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 0), action=(ct_commit { ct_mark.blocked = 0; }; next;)
-  table=7 (ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 1), action=(ct_commit { ct_mark.blocked = 0; ct_label.label = reg3; }; next;)
+AT_CHECK([grep "ls_out_stateful" sw0flows | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
+  table=??(ls_out_stateful    ), priority=0    , match=(1), action=(next;)
+  table=??(ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 0), action=(ct_commit { ct_mark.blocked = 0; }; next;)
+  table=??(ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 1), action=(ct_commit { ct_mark.blocked = 0; ct_label.label = reg3; }; next;)
 ])
 
-# Delete new ACL with label
+# Delete ACLs with labels
 check ovn-nbctl --wait=sb acl-del sw0 to-lport 1002 tcp
+check ovn-nbctl --wait=sb acl-del sw0 to-lport 1001 ip
 check ovn-nbctl --wait=sb acl-del sw0 from-lport 1002 tcp
+check ovn-nbctl --wait=sb acl-del sw0 from-lport 1001 ip
 
 ovn-sbctl dump-flows sw0 > sw0flows
 AT_CAPTURE_FILE([sw0flows])
 
-AT_CHECK([grep -w "ls_in_acl" sw0flows | grep 2002 | sort | sed 's/table=./table=?/'], [0], [dnl
-  table=? (ls_in_acl          ), priority=2002 , match=(reg0[[7]] == 1 && (udp)), action=(reg0[[1]] = 1; next;)
-  table=? (ls_in_acl          ), priority=2002 , match=(reg0[[8]] == 1 && (udp)), action=(next;)
+AT_CHECK([grep -w "ls_in_acl" sw0flows | grep -e 2002 -e 2001 | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
+  table=??(ls_in_acl          ), priority=2001 , match=((reg0[[10]] == 1) && ip6), action=(ct_commit { ct_mark.blocked = 1; };  reg0 = 0; reject { /* eth.dst <-> eth.src; ip.dst <-> ip.src; is implicit. */ outport <-> inport; next(pipeline=egress,table=5); };)
+  table=??(ls_in_acl          ), priority=2001 , match=((reg0[[9]] == 1) && ip6), action=(reg0 = 0; reject { /* eth.dst <-> eth.src; ip.dst <-> ip.src; is implicit. */ outport <-> inport; next(pipeline=egress,table=5); };)
+  table=??(ls_in_acl          ), priority=2002 , match=(reg0[[7]] == 1 && (udp)), action=(reg0[[1]] = 1; next;)
+  table=??(ls_in_acl          ), priority=2002 , match=(reg0[[8]] == 1 && (udp)), action=(next;)
 ])
-AT_CHECK([grep "ls_in_stateful" sw0flows | sort | sed 's/table=../table=??/'], [0], [dnl
+AT_CHECK([grep "ls_in_stateful" sw0flows | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
   table=??(ls_in_stateful     ), priority=0    , match=(1), action=(next;)
   table=??(ls_in_stateful     ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 0), action=(ct_commit { ct_mark.blocked = 0; }; next;)
   table=??(ls_in_stateful     ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 1), action=(ct_commit { ct_mark.blocked = 0; ct_label.label = reg3; }; next;)
 ])
 
-AT_CHECK([grep -w "ls_out_acl" sw0flows | grep 2002 | sort], [0], [dnl
-  table=4 (ls_out_acl         ), priority=2002 , match=(reg0[[7]] == 1 && (udp)), action=(reg0[[1]] = 1; next;)
-  table=4 (ls_out_acl         ), priority=2002 , match=(reg0[[8]] == 1 && (udp)), action=(next;)
+AT_CHECK([grep -w "ls_out_acl" sw0flows | grep -e 2002 -e 2001 | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
+  table=??(ls_out_acl         ), priority=2001 , match=(reg0[[10]] == 1 && (ip6)), action=(ct_commit { ct_mark.blocked = 1; }; /* drop */)
+  table=??(ls_out_acl         ), priority=2001 , match=(reg0[[9]] == 1 && (ip6)), action=(/* drop */)
+  table=??(ls_out_acl         ), priority=2002 , match=(reg0[[7]] == 1 && (udp)), action=(reg0[[1]] = 1; next;)
+  table=??(ls_out_acl         ), priority=2002 , match=(reg0[[8]] == 1 && (udp)), action=(next;)
 ])
-AT_CHECK([grep "ls_out_stateful" sw0flows | sort], [0], [dnl
-  table=7 (ls_out_stateful    ), priority=0    , match=(1), action=(next;)
-  table=7 (ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 0), action=(ct_commit { ct_mark.blocked = 0; }; next;)
-  table=7 (ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 1), action=(ct_commit { ct_mark.blocked = 0; ct_label.label = reg3; }; next;)
+AT_CHECK([grep "ls_out_stateful" sw0flows | sort | sed 's/table=[[0-9]]*\s*/table=??/'], [0], [dnl
+  table=??(ls_out_stateful    ), priority=0    , match=(1), action=(next;)
+  table=??(ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 0), action=(ct_commit { ct_mark.blocked = 0; }; next;)
+  table=??(ls_out_stateful    ), priority=100  , match=(reg0[[1]] == 1 && reg0[[13]] == 1), action=(ct_commit { ct_mark.blocked = 0; ct_label.label = reg3; }; next;)
 ])
 AT_CLEANUP
 ])

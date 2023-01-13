@@ -47,6 +47,7 @@ enum ovn_controller_event {
 #define MFF_LOG_REG0             MFF_REG0
 #define MFF_LOG_LB_ORIG_DIP_IPV4 MFF_REG1
 #define MFF_LOG_LB_ORIG_TP_DPORT MFF_REG2
+#define MFF_LOG_ACL_DROP_ZONE    MFF_REG9
 
 #define MFF_LOG_XXREG0           MFF_XXREG0
 #define MFF_LOG_LB_ORIG_DIP_IPV6 MFF_XXREG1

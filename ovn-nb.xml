@@ -2093,12 +2093,10 @@ or
       <p>
         Associates an identifier with the ACL.
         The same value will be written to corresponding connection
-        tracker entry. The value should be a valid 32-bit unsigned integer.
-        This value can help in debugging from connection tracker side.
+        tracking entry. The value should be a valid 32-bit unsigned integer.
+        This value can help in debugging from connection tracking side.
         For example, through this "label" we can backtrack to the ACL rule
-        which is causing a "leaked" connection. Connection tracker entries are
-        created only for allowed connections so the label is valid only
-        for allow and allow-related actions.
+        which is causing a "leaked" connection.
       </p>
     </column>
     <column name="priority">
