@@ -60,6 +60,7 @@ struct zone_ids {
     int ct;                     /* MFF_LOG_CT_ZONE. */
     int dnat;                   /* MFF_LOG_DNAT_ZONE. */
     int snat;                   /* MFF_LOG_SNAT_ZONE. */
+    int drop;                   /* MFF_LOG_ACL_DROP_ZONE. */
 };
 
 struct tunnel {
@@ -204,13 +205,17 @@ get_zone_ids(const struct sbrec_port_binding *binding,
 
     const struct uuid *key = &binding->datapath->header_.uuid;
 
-    char *dnat = alloc_nat_zone_key(key, "dnat");
+    char *dnat = alloc_ct_zone_key(key, "dnat");
     zone_ids.dnat = simap_get(ct_zones, dnat);
     free(dnat);
 
-    char *snat = alloc_nat_zone_key(key, "snat");
+    char *snat = alloc_ct_zone_key(key, "snat");
     zone_ids.snat = simap_get(ct_zones, snat);
     free(snat);
+
+    char *drop = alloc_ct_zone_key(key, "drop");
+    zone_ids.drop = simap_get(ct_zones, drop);
+    free(drop);
 
     return zone_ids;
 }
@@ -830,6 +835,9 @@ put_zones_ofpacts(const struct zone_ids *zone_ids, struct ofpbuf *ofpacts_p)
         if (zone_ids->snat) {
             put_load(zone_ids->snat, MFF_LOG_SNAT_ZONE, 0, 32, ofpacts_p);
         }
+        if (zone_ids->drop) {
+            put_load(zone_ids->drop, MFF_LOG_ACL_DROP_ZONE, 0, 32, ofpacts_p);
+        }
     }
 }
 
@@ -895,6 +903,26 @@ put_local_common_flows(uint32_t dp_key,
     ofctrl_add_flow(flow_table, OFTABLE_LOCAL_OUTPUT, 100,
                     pb->header_.uuid.parts[0], &match, ofpacts_p,
                     &pb->header_.uuid);
+
+    if (zone_ids->drop) {
+        /* Table 39, Priority 1.
+         * =======================
+         *
+         * Clear the logical registers (for consistent behavior with packets
+         * that get tunneled) except MFF_LOG_ACL_DROP_ZONE. */
+        match_init_catchall(&match);
+        ofpbuf_clear(ofpacts_p);
+        match_set_metadata(&match, htonll(dp_key));
+        for (int i = 0; i < MFF_N_LOG_REGS; i++) {
+            if ((MFF_REG0 + i) != MFF_LOG_ACL_DROP_ZONE) {
+                put_load(0, MFF_REG0 + i, 0, 32, ofpacts_p);
+            }
+        }
+        put_resubmit(OFTABLE_LOG_EGRESS_PIPELINE, ofpacts_p);
+        ofctrl_add_flow(flow_table, OFTABLE_CHECK_LOOPBACK, 1,
+                        pb->datapath->header_.uuid.parts[0], &match,
+                        ofpacts_p, &pb->datapath->header_.uuid);
+    }
 
     /* Table 39, Priority 100.
      * =======================

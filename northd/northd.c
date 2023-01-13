@@ -84,6 +84,10 @@ static bool use_ct_inv_match = true;
  */
 static bool default_acl_drop;
 
+/* If this option is 'true', drop/reject ACLs with label are translated to
+ * commit flows to conntrack besides dropping/rejecting them. */
+static bool ct_commit_acl_drop;
+
 #define MAX_OVN_TAGS 4096
 
 /* Pipeline stages. */
@@ -311,7 +315,7 @@ enum ovn_stage {
  * +----+----------------------------------------------+---+-----------------------------------+
  * | R8 |              LB_AFF_MATCH_PORT               |
  * +----+----------------------------------------------+
- * | R9 |                   UNUSED                     |
+ * | R9 |              ACL DROP CT ZONE                |
  * +----+----------------------------------------------+
  *
  * Logical Router pipeline:
@@ -6493,6 +6497,14 @@ consider_acl(struct hmap *lflows, struct ovn_datapath *od,
             ds_clear(match);
             ds_clear(actions);
             ds_put_cstr(match, REGBIT_ACL_HINT_DROP " == 1");
+            /* If the ACL has a label, we commit the packet in
+             * a separate zone for debugging purposes before
+             * rejecting/dropping it. */
+            if (ct_commit_acl_drop && acl->label) {
+                ds_put_format(actions, "ct_commit_drop { "
+                              "ct_label.label = %"PRId64"; }; ",
+                              acl->label);
+            }
             if (!strcmp(acl->action, "reject")) {
                 build_reject_acl_rules(od, lflows, stage, acl, match,
                                        actions, &acl->header_, meter_groups);
@@ -6519,8 +6531,15 @@ consider_acl(struct hmap *lflows, struct ovn_datapath *od,
             ds_clear(match);
             ds_clear(actions);
             ds_put_cstr(match, REGBIT_ACL_HINT_BLOCK " == 1");
-            ds_put_format(actions, "ct_commit { %s = 1; }; ",
+            ds_put_format(actions, "ct_commit { %s = 1; ",
                           ct_blocked_match);
+            /* Update ct_label.label to reflect the new policy matching
+             * the connection. */
+            if (acl->label) {
+                ds_put_format(actions, "ct_label.label = %"PRId64"; ",
+                              acl->label);
+            }
+            ds_put_cstr(actions, "}; ");
             if (!strcmp(acl->action, "reject")) {
                 build_reject_acl_rules(od, lflows, stage, acl, match,
                                        actions, &acl->header_, meter_groups);
@@ -16236,6 +16255,8 @@ ovnnb_db_run(struct northd_input *input_data,
     check_lsp_is_up = !smap_get_bool(&nb->options,
                                      "ignore_lsp_down", true);
     default_acl_drop = smap_get_bool(&nb->options, "default_acl_drop", false);
+    ct_commit_acl_drop = smap_get_bool(&nb->options,
+                                       "ct_commit_acl_drop", false);
 
     install_ls_lb_from_router = smap_get_bool(&nb->options,
                                               "install_ls_lb_from_router",

@@ -727,13 +727,26 @@
         action for TCP connections,<code>icmp4/icmp6</code> action
         for UDP connections, and <code>sctp_abort {output &lt;-%gt; inport;
         next(pipeline=egress,table=5);}</code> action for SCTP associations.
+        Additionally, if the ACL has a <code>label</code> and
+        <ref column="options:ct_commit_acl_drop" table="NB_Global"
+        db="OVN_Northbound"/> column of <ref table="NB_Global"
+        db="OVN_Northbound"/> table is <code>true</code>, the translated
+        action includes <code>ct_commit_drop(ct_label.label=label)</code>.
       </li>
       <li>
         Other ACLs translate to <code>drop;</code> for new or untracked
         connections and <code>ct_commit(ct_label=1/1);</code> for known
         connections.  Setting <code>ct_label</code> marks a connection
         as one that was previously allowed, but should no longer be
-        allowed due to a policy change.
+        allowed due to a policy change. If the ACLs have <code>label</code>,
+        then they instead translate to
+        <code>ct_commit_drop(ct_label.label=label)</code> for
+        new and untracked connections if
+        <ref column="options:ct_commit_acl_drop" table="NB_Global"
+        db="OVN_Northbound"/> column of <ref table="NB_Global"
+        db="OVN_Northbound"/> table is also set to <code>true</code> and
+        <code>ct_commit(ct_label.blocked=1; ct_label.label=label);</code>
+        for known connections.
       </li>
     </ul>
 
@@ -1165,13 +1178,26 @@
         action for TCP connections,<code>icmp4/icmp6</code> action
         for UDP connections, and <code>sctp_abort {output &lt;-%gt; inport;
         next(pipeline=egress,table=5);}</code> action for SCTP associations.
+        Additionally, if the ACL has a <code>label</code> and
+        <ref column="options:ct_commit_acl_drop" table="NB_Global"
+        db="OVN_Northbound"/> column of <ref table="NB_Global"
+        db="OVN_Northbound"/> table is <code>true</code>, the translated
+        action includes <code>ct_commit_drop(ct_label.label=label)</code>.
       </li>
       <li>
         Other apply-after-lb ACLs translate to <code>drop;</code> for new
         or untracked connections and <code>ct_commit(ct_label=1/1);</code> for
         known connections.  Setting <code>ct_label</code> marks a connection
         as one that was previously allowed, but should no longer be
-        allowed due to a policy change.
+        allowed due to a policy change. If the ACLs have <code>label</code>,
+        then they instead translate to
+        <code>ct_commit_drop(ct_label.label=label)</code> for
+        new and untracked connections if
+        <ref column="options:ct_commit_acl_drop" table="NB_Global"
+        db="OVN_Northbound"/> column of <ref table="NB_Global"
+        db="OVN_Northbound"/> table is also set to <code>true</code> and
+        <code>ct_commit(ct_label.blocked=1; ct_label.label=label);</code>
+        for known connections.
       </li>
     </ul>
 
