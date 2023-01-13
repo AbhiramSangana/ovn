@@ -34664,10 +34664,14 @@ AT_CLEANUP
 OVN_FOR_EACH_NORTHD([
 AT_SETUP([ovn-controller - check logical_switch drop ct zone])
 ovn_start
-net_add n1
 
+net_add n1
 sim_add hv1
 as hv1
+check ovs-vsctl add-br br-phys
+ovn_attach n1 br-phys 172.24.4.1
+check ovs-vsctl set open . external-ids:ovn-bridge-mappings=phys:br-phys
+
 check ovs-vsctl add-port br-int vif0 -- set Interface vif0 external-ids:iface-id=lsp0
 
 check ovn-nbctl ls-add ls0
